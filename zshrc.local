@@ -1,0 +1,13 @@
+# Non-secret env vars required by clickup and cp workflow functions.
+# Secrets (CLICKUP_API_KEY, etc.) come via remoteEnv in Cursor/VS Code user settings.
+
+# ClickUp
+export CLICKUP_DEFAULT_LIST_ID="901812816514"
+export CLICKUP_USER_ID="107553007"
+export CLICKUP_TEAM_PLATFORM_FOLDER_ID="90031642828"
+
+# Github
+export GITHUB_DEFAULT_PR_REVIEWER="Carepatron/platform"
+
+# Git
+export ISSUE_BRANCH_PREFIX="linearname/vit"

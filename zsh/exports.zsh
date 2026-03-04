@@ -1,0 +1,20 @@
+export EDITOR='code'
+export VISUAL='code'
+
+export NODE_REPL_HISTORY=~/.node_history
+export NODE_REPL_HISTORY_SIZE='32768'
+export NODE_REPL_MODE='sloppy'
+
+export PYTHONIOENCODING='UTF-8'
+
+export HISTSIZE='32768'
+export HISTFILESIZE="${HISTSIZE}"
+export HISTCONTROL='ignoreboth'
+
+export LANG='en_US.UTF-8'
+export LC_ALL='en_US.UTF-8'
+export TZ='Pacific/Auckland'
+
+export LESS_TERMCAP_md="${yellow}"
+export MANPAGER='less -X'
+export GPG_TTY=$(tty)

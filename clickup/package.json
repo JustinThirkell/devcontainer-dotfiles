@@ -1,0 +1,21 @@
+{
+  "name": "clickup-zsh-wrapper",
+  "version": "1.0.0",
+  "description": "Node.js wrapper for ClickUp SDK for Zsh functions",
+  "main": "dist/clickup_wrapper.js",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/clickup_wrapper.js",
+    "dev": "ts-node clickup_wrapper.ts"
+  },
+  "dependencies": {
+    "safe-stable-stringify": "^2.5.0"
+  },
+  "license": "ISC",
+  "devDependencies": {
+    "@types/node": "^24.0.3",
+    "tsx": "^4.19.2",
+    "typescript": "^5.8.3"
+  }
+}
+
