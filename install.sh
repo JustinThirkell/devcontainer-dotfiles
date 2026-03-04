@@ -53,5 +53,5 @@ if [ "${DEBUG:-false}" = "true" ]; then
     fi
   done
   debug_log "git include.path = $(git config --global --get include.path 2>/dev/null || echo 'NOT SET')"
-  debug_log "DOTZSH will resolve to: ${DOTZSH:-$HOME/.dotfiles}"
+  debug_log "DOTZSH will resolve to: ${DOTZSH:-$HOME/dotfiles}"
 fi

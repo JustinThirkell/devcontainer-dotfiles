@@ -3,7 +3,7 @@ if [[ -r "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh" ]]
   source "${XDG_CACHE_HOME:-$HOME/.cache}/p10k-instant-prompt-${(%):-%n}.zsh"
 fi
 
-export DOTZSH=${DOTZSH:-$HOME/.dotfiles}
+export DOTZSH=${DOTZSH:-$HOME/dotfiles}
 export PROJECTS=${PROJECTS:-/workspace}
 export USER=${USER:-$(whoami)}
 
