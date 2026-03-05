@@ -26,6 +26,9 @@
   # restarting zsh. Edit ~/.p10k.zsh and type `source ~/.p10k.zsh`.
   unset -m '(POWERLEVEL9K_*|DEFAULT_USER)~POWERLEVEL9K_GITSTATUS_DIR'
 
+  # Disable gitstatus in devcontainers (set after unset -m which clears all POWERLEVEL9K_* vars)
+  typeset -g POWERLEVEL9K_DISABLE_GITSTATUS=${DEVCONTAINER:+true}
+
   # Zsh >= 5.1 is required.
   [[ $ZSH_VERSION == (5.<1->*|<6->.*) ]] || return
 

@@ -1,12 +1,6 @@
 export LSCOLORS="exfxcxdxbxegedabagacad"
 export CLICOLOR=true
 
-fpath=($DOTZSH/functions $fpath)
-
-# Load all functions from the functions directory
-# Note: Use :t to get just the filenames without paths
-autoload -Uz $DOTZSH/functions/*(:t)
-
 HISTFILE=~/.zsh_history
 HISTSIZE=10000
 SAVEHIST=10000
