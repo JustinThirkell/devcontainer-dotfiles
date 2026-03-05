@@ -1,0 +1,12 @@
+{
+  "files.associations": {
+    "secrets*": "properties",
+    "gitconfig*": "properties",
+    "zshrc*": "shellscript",
+    "ohmyzsh*": "shellscript",
+    "p10k*": "shellscript",
+    "gitignore_global*": "gitignore",
+    "": "shellscript",
+    "config.local": "properties"
+  }
+}
