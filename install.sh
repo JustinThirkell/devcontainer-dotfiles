@@ -33,7 +33,8 @@ debug_log "Set git include.path = $DOTFILES_DIR/gitconfig.aliases"
 info_log "Installing ClickUp CLI dependencies"
 
 if command -v npm &>/dev/null; then
-  (cd "$DOTFILES_DIR/clickup" && npm install --no-fund --no-audit 2>&1)
+  cd "$DOTFILES_DIR/clickup" && npm install --no-fund --no-audit
+  cd "$DOTFILES_DIR"
   info_log "ClickUp CLI dependencies installed"
 else
   warn_log "npm not found -- skipping ClickUp CLI dependency install"

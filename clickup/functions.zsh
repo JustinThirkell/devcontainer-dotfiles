@@ -44,10 +44,17 @@ clickup() {
   # Use the pre-computed clickup directory
   local tsx_path="$_CLICKUP_DIR/node_modules/.bin/tsx"
   
-  # Check if tsx exists
+  # Auto-install if tsx is missing
   if [[ ! -f "$tsx_path" ]]; then
-    echo "Error: tsx not found at $tsx_path. Please run 'npm install' in $_CLICKUP_DIR" >&2
-    return 1
+    echo "tsx not found, running npm install in $_CLICKUP_DIR..." >&2
+    (cd "$_CLICKUP_DIR" && npm install --no-fund --no-audit) || {
+      echo "Error: npm install failed in $_CLICKUP_DIR" >&2
+      return 1
+    }
+    if [[ ! -f "$tsx_path" ]]; then
+      echo "Error: tsx still not found after npm install. Check $_CLICKUP_DIR/package.json" >&2
+      return 1
+    fi
   fi
   
   # Use the absolute path to tsx to ensure it works from any directory
