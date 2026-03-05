@@ -26,8 +26,17 @@ done
 # ---- Git aliases ----
 info_log "Configuring git aliases via include.path"
 
-git config --global include.path "$DOTFILES_DIR/gitconfig.aliases"
-debug_log "Set git include.path = $DOTFILES_DIR/gitconfig.aliases"
+ALIAS_PATH="$DOTFILES_DIR/gitconfig.aliases"
+# Log existing include.path entries for debugging
+debug_log "Existing include.path entries:"
+git config --global --get-all include.path 2>/dev/null | while read -r p; do debug_log "  $p"; done || debug_log "  (none)"
+# Add our aliases path if not already included (--add avoids overwriting existing entries)
+if ! git config --global --get-all include.path 2>/dev/null | grep -qxF "$ALIAS_PATH"; then
+  git config --global --add include.path "$ALIAS_PATH"
+  debug_log "Added git include.path = $ALIAS_PATH"
+else
+  debug_log "git include.path already contains $ALIAS_PATH, skipping"
+fi
 
 # ---- ClickUp CLI dependencies ----
 info_log "Installing ClickUp CLI dependencies"
