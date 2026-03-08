@@ -41,12 +41,12 @@ In your **Cursor or VS Code user settings** (`settings.json` -- user-level, not 
 ```json
 {
   "dotfiles.repository": "github.com/youruser/dotfiles-justin",
-  "dotfiles.targetPath": "~/.dotfiles",
+  "dotfiles.targetPath": "~/dotfiles",
   "dotfiles.installCommand": "install.sh"
 }
 ```
 
-This tells the devcontainer runtime to clone this repo into `~/.dotfiles` inside
+This tells the devcontainer runtime to clone this repo into `~/dotfiles` inside
 every container and run `install.sh`. It applies to all devcontainers you open --
 your teammates don't need to know about it.
 
@@ -72,8 +72,7 @@ See `secrets.local.example` for the full list of required variables.
 
 ### 3. Devcontainer prerequisites
 
-The **project's devcontainer** (Dockerfile or devcontainer features) must provide
-the following. These are shared infrastructure, not personal config:
+The **project's devcontainer** (Dockerfile or devcontainer features) must provide the following.  These are shared dependencies that are much more efficient to install during docker build than at runtime:
 
 | Tool                     | Why                                    |
 |--------------------------|----------------------------------------|
@@ -92,7 +91,7 @@ When a devcontainer starts with dotfiles configured:
 
 ```
 Container starts
-  └─> Devcontainer runtime clones this repo to ~/.dotfiles
+  └─> Devcontainer runtime clones this repo to ~/dotfiles
        └─> Runs install.sh
             ├─ Sources common.sh (logging utilities)
             ├─ Copies zshrc, p10k.zsh, ohmyzsh.config, zshrc.local into $HOME
@@ -107,7 +106,7 @@ First terminal opened (zsh starts)
        ├─ Sources ~/.ohmyzsh.config (sets theme, plugins)
        ├─ Sources ~/.p10k.zsh (prompt config)
        ├─ Loads Oh My Zsh
-       ├─ Globs ~/.dotfiles/*/*.zsh and sources all topic files:
+       ├─ Globs ~/dotfiles/*/*.zsh and sources all topic files:
        │    ├─ zsh/functions.zsh, exports.zsh, config.zsh
        │    ├─ clickup/functions.zsh
        │    └─ cp/workflow.zsh, git.zsh, aliases.zsh
@@ -146,7 +145,7 @@ prints a summary of all installed config files with their sizes.
 
 **ClickUp functions not working:**
 - Check that `CLICKUP_API_KEY` is set: `echo $CLICKUP_API_KEY`
-- Check that npm dependencies are installed: `ls ~/.dotfiles/clickup/node_modules/.bin/tsx`
+- Check that npm dependencies are installed: `ls ~/dotfiles/clickup/node_modules/.bin/tsx`
 - Re-run install: `~/.dotfiles/install.sh`
 
 **p10k prompt looks broken (missing glyphs):**
@@ -160,7 +159,7 @@ prints a summary of all installed config files with their sizes.
 - Run `gh auth login` inside the container
 
 **zshrc not loading / old config:**
-- Verify dotfiles were cloned: `ls ~/.dotfiles/`
+- Verify dotfiles were cloned: `ls ~/dotfiles/`
 - Verify zshrc was copied: `head -5 ~/.zshrc` (should show p10k instant prompt)
 - Re-source: `dz` (alias for `source ~/.zshrc`)
 - Full reset: `dzz` (alias for `exec zsh`)
