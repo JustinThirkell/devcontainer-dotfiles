@@ -10,4 +10,4 @@ export CLICKUP_TEAM_PLATFORM_FOLDER_ID="90031642828"
 export GITHUB_DEFAULT_PR_REVIEWER="Carepatron/platform"
 
 # Git
-export ISSUE_BRANCH_PREFIX="linearname/vit"
+export ISSUE_BRANCH_PREFIX="justin"

@@ -10,9 +10,9 @@ infer_branch_name() {
   local title="$2"
   local DEBUG="${3:-false}"
 
-  # Validate USER environment variable is set
-  if [[ -z "$USER" ]]; then
-    error "USER environment variable is not set. Cannot infer branch name."
+  # Validate ISSUE_BRANCH_PREFIX environment variable is set
+  if [[ -z "$ISSUE_BRANCH_PREFIX" ]]; then
+    error "ISSUE_BRANCH_PREFIX environment variable is not set. Cannot infer branch name."
     return 1
   fi
 
@@ -44,7 +44,7 @@ infer_branch_name() {
   [[ "$DEBUG" == "true" ]] && debug "infer_branch_name: branch_name_slug=$branch_name_slug"
 
   # Construct branch name: username/CU-{taskid}-{slug}
-  local branch_name="${USER}/CU-${task_id}-${branch_name_slug}"
+  local branch_name="${ISSUE_BRANCH_PREFIX}/CU-${task_id}-${branch_name_slug}"
 
   [[ "$DEBUG" == "true" ]] && debug "infer_branch_name: result=$branch_name"
   info "Constructed branch name: $branch_name"
@@ -97,9 +97,9 @@ git_infer_task_id() {
   local branch_name="$1"
   local DEBUG="${2:-false}"
 
-  # Validate USER environment variable is set
-  if [[ -z "$USER" ]]; then
-    error "USER environment variable is not set. Cannot infer task ID."
+  # Validate ISSUE_BRANCH_PREFIX environment variable is set
+  if [[ -z "$ISSUE_BRANCH_PREFIX" ]]; then
+    error "ISSUE_BRANCH_PREFIX environment variable is not set. Cannot infer task ID."
     return 1
   fi
 
@@ -120,7 +120,7 @@ git_infer_task_id() {
 
   # Validate extracted task ID
   if [[ -z "$task_id" ]]; then
-    error "No task ID detected in branch name. Expected format: username/CU-{taskid}-{slug} (e.g. ${USER}/CU-86ew4x0vz-fix-the-bug)"
+    error "No task ID detected in branch name. Expected format: {ISSUE_BRANCH_PREFIX}/CU-{taskid}-{slug} (e.g. justin/CU-86ew4x0vz-fix-the-bug)"
     info "Please use a branch with a valid task identifier."
     return 1
   fi
