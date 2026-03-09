@@ -23,6 +23,18 @@ for file in zshrc:.zshrc p10k.zsh:.p10k.zsh ohmyzsh.config:.ohmyzsh.config zshrc
   fi
 done
 
+# ---- Claude Code user config ----                                                                                                                                                                   
+info_log "Installing Claude Code user config"                                                                                                                                                         
+                                                                                                                                                                                                      
+CLAUDE_DIR="$HOME/.claude"                                                                                                                                                                            
+mkdir -p "$CLAUDE_DIR"                                                                                                                                                                                
+if [[ -f "$DOTFILES_DIR/.claude/CLAUDE.md" ]]; then
+  cp "$DOTFILES_DIR/.claude/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
+  debug_log "Copied .claude/CLAUDE.md -> $CLAUDE_DIR/CLAUDE.md"
+else
+  warn_log "Source file not found: $DOTFILES_DIR/.claude/CLAUDE.md"
+fi
+
 # ---- Git aliases ----
 info_log "Configuring git aliases via include.path"
 
@@ -55,7 +67,7 @@ info_log "Dotfiles installed successfully"
 
 if [ "${DEBUG:-false}" = "true" ]; then
   debug_log "--- Installed config files ---"
-  for f in ~/.zshrc ~/.p10k.zsh ~/.ohmyzsh.config ~/.zshrc.local; do
+  for f in ~/.zshrc ~/.p10k.zsh ~/.ohmyzsh.config ~/.zshrc.local ~/.claude/CLAUDE.md; do
     if [[ -f "$f" ]]; then
       debug_log "  $f ($(wc -c < "$f") bytes)"
     else
