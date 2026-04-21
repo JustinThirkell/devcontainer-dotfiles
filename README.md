@@ -17,6 +17,7 @@ dotfiles-justin/
 ├── gitconfig.aliases       # Git aliases (bclean, bdone, fp, re, ri, etc.)
 ├── secrets.local.example   # Documents required secrets (not committed)
 ├── zsh/
+│   ├── aliases.zsh         # General-purpose aliases (j=just, etc.)
 │   ├── functions.zsh       # info/error/debug helpers, dz/dzz reload aliases
 │   ├── exports.zsh         # EDITOR, HISTSIZE, LANG, TZ, etc.
 │   └── config.zsh          # Shell options, history, keybindings
@@ -107,7 +108,7 @@ First terminal opened (zsh starts)
        ├─ Sources ~/.p10k.zsh (prompt config)
        ├─ Loads Oh My Zsh
        ├─ Globs ~/dotfiles/*/*.zsh and sources all topic files:
-       │    ├─ zsh/functions.zsh, exports.zsh, config.zsh
+       │    ├─ zsh/aliases.zsh, functions.zsh, exports.zsh, config.zsh
        │    ├─ clickup/functions.zsh
        │    └─ cp/workflow.zsh, git.zsh, aliases.zsh
        └─ Sources zsh-syntax-highlighting (if installed)
