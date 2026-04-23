@@ -2,11 +2,11 @@
 # ClickUp CLI Wrapper
 ##############################################################################################
 
-# Get the directory where this file is located (works when file is sourced)
-_CLICKUP_DIR="${${(%):-%x}:A:h}"
-
-# Path to the clickup.ts script
-_CLICKUP_SCRIPT_PATH="$_CLICKUP_DIR/clickup.ts"
+# Resolve the clickup dir from $DOTZSH (set by zshrc, defaults to $HOME/dotfiles).
+# Avoid %x prompt expansion — it returns empty in some non-interactive shell
+# invocations (e.g. Claude Code's Bash tool), leaving the path broken.
+: "${_CLICKUP_DIR:=${DOTZSH:-$HOME/dotfiles}/clickup}"
+: "${_CLICKUP_SCRIPT_PATH:=$_CLICKUP_DIR/clickup.ts}"
 
 # Main clickup function that dispatches to subcommands
 clickup() {
@@ -34,6 +34,11 @@ clickup() {
     echo "  clickup add-task-to-current-sprint 86ew4x0vz"
     return 1
   fi
+
+  # Re-resolve in case the file was sourced in a context where %x / $DOTZSH
+  # weren't set at source time.
+  local _CLICKUP_DIR="${_CLICKUP_DIR:-${DOTZSH:-$HOME/dotfiles}/clickup}"
+  local _CLICKUP_SCRIPT_PATH="${_CLICKUP_SCRIPT_PATH:-$_CLICKUP_DIR/clickup.ts}"
 
   # Check if clickup.ts exists
   if [[ ! -f "$_CLICKUP_SCRIPT_PATH" ]]; then
