@@ -1,2 +1,2 @@
 alias j=just
-alias gs=git status
+alias gs='git status'
