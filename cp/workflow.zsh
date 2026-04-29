@@ -64,9 +64,9 @@ cp_new_task() {
   [[ "$DEBUG" == "true" ]] && debug "Raw create-task output: $create_result"
 
   local sanitized_result
-  sanitized_result=$(echo "$create_result" | tr -d '\000-\037')
+  sanitized_result=$(tr -d '\000-\037' <<<"$create_result")
   local task_id
-  task_id=$(echo "$sanitized_result" | jq -r '.id')
+  task_id=$(jq -r '.id' <<<"$sanitized_result")
 
   if [[ -z "$task_id" || "$task_id" == "null" ]]; then
     error "Could not extract task ID from create-task response"

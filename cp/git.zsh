@@ -35,8 +35,7 @@ infer_branch_name() {
   # - Collapse multiple consecutive dashes
   # - Remove leading/trailing dashes
   local branch_name_slug
-  branch_name_slug=$(echo "$title" | \
-    tr '[:upper:]' '[:lower:]' | \
+  branch_name_slug=$(tr '[:upper:]' '[:lower:]' <<<"$title" | \
     sed 's/[^a-z0-9]/-/g' | \
     sed 's/-\+/-/g' | \
     sed 's/^-\|-$//g')
@@ -79,7 +78,7 @@ infer_pr_title() {
 
   # Ensure the first letter of the task title is capitalized
   local title_capitalized
-  title_capitalized=$(echo "$title" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+  title_capitalized=$(awk '{print toupper(substr($0,1,1)) substr($0,2)}' <<<"$title")
   [[ "$DEBUG" == "true" ]] && debug "infer_pr_title: title_capitalized=$title_capitalized"
 
   # Format the PR title with CU- prefix, task ID and capitalized title
@@ -114,7 +113,7 @@ git_infer_task_id() {
   # Extract the task ID from branch format: username/CU-{taskid}-{slug}
   # Example: justin/CU-86ew4x0vz-update-canvas-dependency -> 86ew4x0vz
   local task_id
-  task_id=$(echo "$branch_name" | sed 's|.*/||' | sed 's/^CU-//' | sed 's/-.*//')
+  task_id=$(sed 's|.*/||' <<<"$branch_name" | sed 's/^CU-//' | sed 's/-.*//')
 
   [[ "$DEBUG" == "true" ]] && debug "git_infer_task_id: extracted task_id=$task_id"
 
@@ -180,12 +179,12 @@ git_checkout_task_branch() {
 
   # Sanitize JSON to handle any remaining control characters before jq parsing
   local sanitized_task
-  sanitized_task=$(echo "$task" | tr -d '\000-\037')
+  sanitized_task=$(tr -d '\000-\037' <<<"$task")
   [[ "$DEBUG" == "true" ]] && debug "Sanitized task JSON"
 
   # Extract task name using jq
   local task_name
-  task_name=$(echo "$sanitized_task" | jq -r '.name')
+  task_name=$(jq -r '.name' <<<"$sanitized_task")
 
   if [[ -z "$task_name" || "$task_name" == "null" ]]; then
     error "Could not extract task name from ClickUp response for task ID: $task_id"
@@ -306,15 +305,15 @@ git_pr_task_branch() {
 
   # Sanitize JSON to handle any remaining control characters before jq parsing
   local sanitized_task
-  sanitized_task=$(echo "$task" | tr -d '\000-\037')
+  sanitized_task=$(tr -d '\000-\037' <<<"$task")
 
   # Extract task fields - extract description separately to preserve newlines
   local task_name task_url
-  task_name=$(echo "$sanitized_task" | jq -r '.name')
-  task_url=$(echo "$sanitized_task" | jq -r '.url')
+  task_name=$(jq -r '.name' <<<"$sanitized_task")
+  task_url=$(jq -r '.url' <<<"$sanitized_task")
   # Extract description with newlines preserved (jq -r outputs raw, including \n)
   local task_description
-  task_description=$(echo "$sanitized_task" | jq -r '.text_content // ""')
+  task_description=$(jq -r '.text_content // ""' <<<"$sanitized_task")
 
   if [[ -z "$task_name" || "$task_name" == "null" ]]; then
     error "Could not extract task name from ClickUp response for task ID: $task_id_from_branch"
@@ -337,7 +336,7 @@ git_pr_task_branch() {
   
   # Capitalize title for use in description
   local title_capitalized
-  title_capitalized=$(echo "$task_name" | awk '{print toupper(substr($0,1,1)) substr($0,2)}')
+  title_capitalized=$(awk '{print toupper(substr($0,1,1)) substr($0,2)}' <<<"$task_name")
 
   # PR description: custom body overrides ClickUp/LLM
   local pr_description
@@ -411,8 +410,8 @@ Only return the PR description, don't return anything else."
   if [ $? -eq 0 ]; then
     # PR exists, update it
     # Sanitize the JSON output before passing it to jq to handle control characters
-    sanitized_pr=$(echo "$existing_pr" | tr -d '\000-\037')
-    pr_number=$(echo "$sanitized_pr" | jq -r .number)
+    sanitized_pr=$(tr -d '\000-\037' <<<"$existing_pr")
+    pr_number=$(jq -r .number <<<"$sanitized_pr")
 
     if [[ "$SKIP_LLM" == "true" ]]; then
       if [[ -n "$pr_description" && "$pr_description" != "" ]]; then
