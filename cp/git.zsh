@@ -233,12 +233,18 @@ git_pr_task_branch() {
   local DEBUG=false
   local reviewer="${GITHUB_DEFAULT_PR_REVIEWER:-}"
   local custom_body=""
+  local skip_ai_review=false
+  local skip_label="${GREPTILE_SKIP_LABEL:-skip-greptile}"
 
   # Process command line arguments
   while [[ $# -gt 0 ]]; do
     case "$1" in
     --skip-llm)
       SKIP_LLM=true
+      shift
+      ;;
+    --skip-ai-review|--sr)
+      skip_ai_review=true
       shift
       ;;
     --debug)
@@ -249,7 +255,7 @@ git_pr_task_branch() {
       shift
       if [[ $# -lt 1 ]]; then
         echo "Missing value for --body"
-        echo "Usage: git_pr_task_branch [--skip-llm] [--debug] [--body DESCRIPTION]"
+        echo "Usage: git_pr_task_branch [--skip-llm] [--debug] [--body DESCRIPTION] [--skip-ai-review|--sr]"
         return 1
       fi
       custom_body="$1"
@@ -257,7 +263,7 @@ git_pr_task_branch() {
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: git_pr_task_branch [--skip-llm] [--debug] [--body DESCRIPTION]"
+      echo "Usage: git_pr_task_branch [--skip-llm] [--debug] [--body DESCRIPTION] [--skip-ai-review|--sr]"
       return 1
       ;;
     esac
@@ -438,6 +444,10 @@ Only return the PR description, don't return anything else."
     
     if [[ -n "$reviewer" ]]; then
       pr_args+=(--reviewer "$reviewer")
+    fi
+
+    if [[ "$skip_ai_review" == true ]]; then
+      pr_args+=(--label "$skip_label")
     fi
     
     if [[ "$SKIP_LLM" == "true" && (-n "$pr_description" && "$pr_description" != "") ]]; then

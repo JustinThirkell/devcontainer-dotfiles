@@ -185,6 +185,7 @@ alias start=cp_start_task
 cp_pr_task() {
   local DEBUG=false
   local pr_body=""
+  local skip_ai_review=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -196,15 +197,19 @@ cp_pr_task() {
       shift
       if [[ $# -lt 1 ]]; then
         echo "Missing value for --body"
-        echo "Usage: cp_pr_task [--debug] [--body DESCRIPTION]"
+        echo "Usage: cp_pr_task [--debug] [--body DESCRIPTION] [--skip-ai-review|--sr]"
         return 1
       fi
       pr_body="$1"
       shift
       ;;
+    --skip-ai-review|--sr)
+      skip_ai_review=true
+      shift
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: cp_pr_task [--debug] [--body DESCRIPTION]"
+      echo "Usage: cp_pr_task [--debug] [--body DESCRIPTION] [--skip-ai-review|--sr]"
       return 1
       ;;
     esac
@@ -231,17 +236,12 @@ cp_pr_task() {
   [[ "$DEBUG" == "true" ]] && debug "Extracted task ID from branch: $task_id"
 
   info "Creating/updating PR for task $task_id"
-  if [[ -n "$pr_body" ]]; then
-    if [[ "$DEBUG" == "true" ]]; then
-      git_pr_task_branch --body "$pr_body" --debug
-    else
-      git_pr_task_branch --body "$pr_body"
-    fi
-  elif [[ "$DEBUG" == "true" ]]; then
-    git_pr_task_branch --debug
-  else
-    git_pr_task_branch
-  fi
+  local pr_args=()
+  [[ -n "$pr_body" ]] && pr_args+=(--body "$pr_body")
+  [[ "$DEBUG" == "true" ]] && pr_args+=(--debug)
+  [[ "$skip_ai_review" == true ]] && pr_args+=(--skip-ai-review)
+
+  git_pr_task_branch "${pr_args[@]}"
 
   local pr_exit_code=$?
 
