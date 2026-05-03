@@ -468,3 +468,55 @@ Only return the PR description, don't return anything else."
     gh pr view --web
   fi
 }
+
+# Remove worktrees whose checked-out branch is in the provided list.
+# Used after a PR merges and its remote branch is gone — the worktree
+# would otherwise pin the local branch and block `git branch -D`.
+#
+# Usage: git_remove_gone_worktrees <branch> [<branch>...]
+# Returns: 0 on success; non-zero if any removal failed.
+# Notes:
+#   - Skips the worktree containing the current working directory.
+#   - No --force; dirty worktrees fail loudly so the operator can decide.
+#   - Always runs `git worktree prune` at the end.
+git_remove_gone_worktrees() {
+  if [[ $# -eq 0 ]]; then
+    return 0
+  fi
+
+  local -a gone_branches=("$@")
+  local current_wt
+  current_wt=$(git rev-parse --show-toplevel 2>/dev/null)
+
+  local wt_path="" wt_branch="" line failed=0
+  while IFS= read -r line; do
+    case "$line" in
+    "worktree "*)
+      wt_path="${line#worktree }"
+      wt_branch=""
+      ;;
+    "branch refs/heads/"*)
+      wt_branch="${line#branch refs/heads/}"
+      if [[ -n "${gone_branches[(r)$wt_branch]}" ]]; then
+        if [[ "$wt_path" == "$current_wt" ]]; then
+          info "Skipping current worktree $wt_path (branch $wt_branch); rerun cleanup from elsewhere to remove it."
+        else
+          info "Removing worktree $wt_path (branch $wt_branch — upstream gone)."
+          if ! git worktree remove "$wt_path"; then
+            error "Failed to remove worktree $wt_path (uncommitted changes? run 'git worktree remove --force $wt_path' manually if intended)."
+            failed=1
+          fi
+        fi
+      fi
+      ;;
+    "")
+      wt_path=""
+      wt_branch=""
+      ;;
+    esac
+  done < <(git worktree list --porcelain)
+
+  git worktree prune
+
+  return $failed
+}

@@ -317,6 +317,9 @@ cp_cleanup_branches() {
     fi
   done
 
+  info "Removing worktrees for gone branches before deletion."
+  git_remove_gone_worktrees "${gone_branches[@]}" || failed=1
+
   info "Running git bclean to delete gone branches."
   git bclean
 
