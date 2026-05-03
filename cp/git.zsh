@@ -233,8 +233,8 @@ git_pr_task_branch() {
   local DEBUG=false
   local reviewer="${GITHUB_DEFAULT_PR_REVIEWER:-}"
   local custom_body=""
-  local skip_ai_review=false
-  local skip_label="${GREPTILE_SKIP_LABEL:-skip-greptile}"
+  local ai_review=false
+  local ai_review_label="${GREPTILE_LABEL:-greptile}"
 
   # Process command line arguments
   while [[ $# -gt 0 ]]; do
@@ -243,8 +243,8 @@ git_pr_task_branch() {
       SKIP_LLM=true
       shift
       ;;
-    --skip-ai-review|--sr)
-      skip_ai_review=true
+    --ai-review|-ar|--greptile)
+      ai_review=true
       shift
       ;;
     --debug)
@@ -255,7 +255,7 @@ git_pr_task_branch() {
       shift
       if [[ $# -lt 1 ]]; then
         echo "Missing value for --body"
-        echo "Usage: git_pr_task_branch [--skip-llm] [--debug] [--body DESCRIPTION] [--skip-ai-review|--sr]"
+        echo "Usage: git_pr_task_branch [--skip-llm] [--debug] [--body DESCRIPTION] [--ai-review|-ar|--greptile]"
         return 1
       fi
       custom_body="$1"
@@ -263,7 +263,7 @@ git_pr_task_branch() {
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: git_pr_task_branch [--skip-llm] [--debug] [--body DESCRIPTION] [--skip-ai-review|--sr]"
+      echo "Usage: git_pr_task_branch [--skip-llm] [--debug] [--body DESCRIPTION] [--ai-review|-ar|--greptile]"
       return 1
       ;;
     esac
@@ -423,13 +423,16 @@ Only return the PR description, don't return anything else."
       if [[ -n "$pr_description" && "$pr_description" != "" ]]; then
         info "🔄 Updating existing PR #$pr_number"
         gh pr edit $pr_number --title "$pr_title" --body "$pr_description"
+        [[ "$ai_review" == true ]] && gh pr edit "$pr_number" --add-label "$ai_review_label"
       else
         info "🔄 Updating existing PR #$pr_number (title only)"
         gh pr edit $pr_number --title "$pr_title"
+        [[ "$ai_review" == true ]] && gh pr edit "$pr_number" --add-label "$ai_review_label"
       fi
     else
       info "🔄 Updating existing PR #$pr_number"
       gh pr edit $pr_number --title "$pr_title" --body "$pr_description"
+      [[ "$ai_review" == true ]] && gh pr edit "$pr_number" --add-label "$ai_review_label"
     fi
     echo "🎉 Successfully updated PR"
   else
@@ -446,8 +449,8 @@ Only return the PR description, don't return anything else."
       pr_args+=(--reviewer "$reviewer")
     fi
 
-    if [[ "$skip_ai_review" == true ]]; then
-      pr_args+=(--label "$skip_label")
+    if [[ "$ai_review" == true ]]; then
+      pr_args+=(--label "$ai_review_label")
     fi
     
     if [[ "$SKIP_LLM" == "true" && (-n "$pr_description" && "$pr_description" != "") ]]; then

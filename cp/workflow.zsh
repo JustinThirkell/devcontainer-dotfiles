@@ -184,7 +184,7 @@ alias start=cp_start_task
 cp_pr_task() {
   local DEBUG=false
   local pr_body=""
-  local skip_ai_review=false
+  local ai_review=false
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -196,19 +196,19 @@ cp_pr_task() {
       shift
       if [[ $# -lt 1 ]]; then
         echo "Missing value for --body"
-        echo "Usage: cp_pr_task [--debug] [--body DESCRIPTION] [--skip-ai-review|--sr]"
+        echo "Usage: cp_pr_task [--debug] [--body DESCRIPTION] [--ai-review|-ar|--greptile]"
         return 1
       fi
       pr_body="$1"
       shift
       ;;
-    --skip-ai-review|--sr)
-      skip_ai_review=true
+    --ai-review|-ar|--greptile)
+      ai_review=true
       shift
       ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: cp_pr_task [--debug] [--body DESCRIPTION] [--skip-ai-review|--sr]"
+      echo "Usage: cp_pr_task [--debug] [--body DESCRIPTION] [--ai-review|-ar|--greptile]"
       return 1
       ;;
     esac
@@ -238,7 +238,7 @@ cp_pr_task() {
   local pr_args=()
   [[ -n "$pr_body" ]] && pr_args+=(--body "$pr_body")
   [[ "$DEBUG" == "true" ]] && pr_args+=(--debug)
-  [[ "$skip_ai_review" == true ]] && pr_args+=(--skip-ai-review)
+  [[ "$ai_review" == true ]] && pr_args+=(--ai-review)
 
   git_pr_task_branch "${pr_args[@]}"
 

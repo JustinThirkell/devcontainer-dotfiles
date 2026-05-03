@@ -28,7 +28,7 @@
 
   Accepts a task ID or a ClickUp URL (e.g. `https://app.clickup.com/t/86ewdbtbh`).
 
-  ### `pr` / `cp_pr_task [--body DESCRIPTION] [--sr | --skip-ai-review]`
+  ### `pr` / `cp_pr_task [--body DESCRIPTION] [--ai-review | -ar | --greptile]`
 
   Creates or updates a PR for the current branch:
 
@@ -40,20 +40,25 @@
   6. Marks the ClickUp task as IN REVIEW.
 
   Use `--body` to provide a custom PR description; otherwise uses the ClickUp task description.
-  Use `--sr` (alias of `--skip-ai-review`) to add the `skip-greptile` label so the Greptile AI reviewer bot skips this PR.
+  Use `--ai-review` (aliases: `-ar`, `--greptile`) to add the `greptile` label so the Greptile AI reviewer bot reviews this PR.
 
-  #### When to use `--sr` / `--skip-ai-review`
+  #### When to use `--ai-review` / `-ar` / `--greptile`
 
-  **Default to omitting `--sr`.**  Substantive code changes — even small ones — get the AI review.
+  **Default is no AI review.**  Greptile only reviews PRs that carry the `greptile` label — passing the flag is the opt-in.
 
-  Add `--sr` only when an AI reviewer would have nothing useful to say:
+  Add `--ai-review` for unarguably substantive code changes where an AI reviewer has something useful to say:
+
+  - Logic changes, new endpoints, migrations, security-sensitive code.
+  - Anything non-trivial in infrastructure definitions.
+
+  Omit the flag for changes an AI reviewer would have nothing useful to say about:
 
   - Docs / markdown / comment-only changes.
   - Auto-generated code (regenerated TypeScript clients, OpenAPI artifacts, etc.).
   - Pure reformatting (mass CSharpier / Biome rerun, no logic changes).
   - Trivial config bumps (version pins, env var renames with no behaviour change).
 
-  When in doubt, omit `--sr`.  A wasted Greptile run is cheaper than a missed review on real code.
+  When in doubt, do not use `--ai-review`.  Greptile runs are expensive and can be opted into by the operator on an existing PR if deemed necessary after the PR is created.
 
   ### `cleanup` / `cp_cleanup_branches`
 
@@ -96,7 +101,7 @@
 
   - LLM-generated description from branch diff (when `--body` is omitted)
   - Auto-opens the PR in browser
-  - Honours `--sr` / `--skip-ai-review` for Greptile bot skip
+  - Honours `--ai-review` / `-ar` / `--greptile` for Greptile bot opt-in
   - Marks the ClickUp task as IN REVIEW automatically
 
   ## Devcontainer worktree workflow
@@ -115,7 +120,7 @@
   6. **Mark task IN PROGRESS + sprint.**  `clickup start-task <id>` and `clickup add-task-to-current-sprint <id>`.  Both git-free.  (These are the bits `cp_start_task` does *after* its checkout; we run them directly.)
   7. **Code / test dev loop.**  Operate inside `~/worktrees/CU-{taskid}-{slug}/` using absolute paths.  TDD red/green per project standards.  ExecPlan reads and updates happen inside the worktree (the plan file is in-repo, so the worktree has its own copy).
   8. **Commit.**  Logical units; `[CU-{taskid}]` prefix in the message body, not the subject.
-  9. **Open the PR.**  From inside the worktree: `pr` (or `pr --sr` for trivial / docs-only changes).  Per the "always use `pr`, never the `/pr-create` skill" section above.  `pr` works unchanged in a worktree — `git push` and `gh pr` are pwd-aware, and `clickup pr-task` is git-free.
+  9. **Open the PR.**  From inside the worktree: `pr --ai-review` for substantive code changes (or just `pr` for trivial / docs-only changes).  Per the "always use `pr`, never the `/pr-create` skill" section above.  `pr` works unchanged in a worktree — `git push` and `gh pr` are pwd-aware, and `clickup pr-task` is git-free.
   10. **Update the ExecPlan** if one applies — tick milestone checkboxes, add Surprises/Decisions.  Follow-up commit + `pr` updates the existing PR.
   11. **Leave the worktree in place** until the PR merges.  Cleanup post-merge is `git worktree remove ~/worktrees/CU-{taskid}-{slug}` — do not remove or `git branch -D` without explicit user approval.
 
