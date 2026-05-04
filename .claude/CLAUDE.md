@@ -44,21 +44,19 @@
 
   #### When to use `--ai-review` / `-ar` / `--greptile`
 
-  **Default is no AI review.**  Greptile only reviews PRs that carry the `greptile` label — passing the flag is the opt-in.
+  **Never pass `--ai-review` (or its aliases `-ar`, `--greptile`) unless the operator has explicitly asked for it in the current request.**
 
-  Add `--ai-review` for unarguably substantive code changes where an AI reviewer has something useful to say:
+  Greptile only reviews PRs that carry the `greptile` label, and Greptile runs are expensive — the operator opts in deliberately, per PR.  The agent does not get to judge "this change feels substantive enough, I'll add `--ai-review`".  That judgment is the operator's, not the agent's.
 
-  - Logic changes, new endpoints, migrations, security-sensitive code.
-  - Anything non-trivial in infrastructure definitions.
+  Rules:
 
-  Omit the flag for changes an AI reviewer would have nothing useful to say about:
+  - Default: `pr` with no AI-review flag.  This applies to **every** PR — feature work, infrastructure changes, migrations, security-sensitive code, anything.  "Substantive" is not a trigger.
+  - Add `--ai-review` **only** when the operator's message in the current request contains an explicit instruction to do so.  Examples that count as explicit: "pr with greptile", "pr --ai-review", "use ai review", "add the greptile label", "open this with greptile".
+  - Examples that do **not** count as explicit: "this is a big change" (operator describing scope, not requesting review), "make sure this is reviewed carefully" (ambiguous — ask), "pr this" (no review flag mentioned — default to no flag).
+  - If the operator's intent is ambiguous, ask before adding the flag.  Do not infer.
+  - The operator can always add the `greptile` label to an existing PR after the fact.  Erring toward "no flag" is cheap to undo; erring toward "flag added" wastes a Greptile run.
 
-  - Docs / markdown / comment-only changes.
-  - Auto-generated code (regenerated TypeScript clients, OpenAPI artifacts, etc.).
-  - Pure reformatting (mass CSharpier / Biome rerun, no logic changes).
-  - Trivial config bumps (version pins, env var renames with no behaviour change).
-
-  When in doubt, do not use `--ai-review`.  Greptile runs are expensive and can be opted into by the operator on an existing PR if deemed necessary after the PR is created.
+  Reason this rule is strict: previous wording carved out an "add it for substantive changes" exception that the agent leaned on to opt in unilaterally, which is exactly the wrong default.  The operator wants `--ai-review` to be opt-in via explicit instruction, full stop.
 
   ### `cleanup` / `cp_cleanup_branches`
 
@@ -101,7 +99,7 @@
 
   - LLM-generated description from branch diff (when `--body` is omitted)
   - Auto-opens the PR in browser
-  - Honours `--ai-review` / `-ar` / `--greptile` for Greptile bot opt-in
+  - Honours `--ai-review` / `-ar` / `--greptile` for Greptile bot opt-in (only when the operator explicitly asks — see the rule above)
   - Marks the ClickUp task as IN REVIEW automatically
 
   ## Devcontainer worktree workflow
@@ -120,7 +118,7 @@
   6. **Mark task IN PROGRESS + sprint.**  `clickup start-task <id>` and `clickup add-task-to-current-sprint <id>`.  Both git-free.  (These are the bits `cp_start_task` does *after* its checkout; we run them directly.)
   7. **Code / test dev loop.**  Operate inside `~/worktrees/CU-{taskid}-{slug}/` using absolute paths.  TDD red/green per project standards.  ExecPlan reads and updates happen inside the worktree (the plan file is in-repo, so the worktree has its own copy).
   8. **Commit.**  Logical units; `[CU-{taskid}]` prefix in the message body, not the subject.
-  9. **Open the PR.**  From inside the worktree: `pr --ai-review` for substantive code changes (or just `pr` for trivial / docs-only changes).  Per the "always use `pr`, never the `/pr-create` skill" section above.  `pr` works unchanged in a worktree — `git push` and `gh pr` are pwd-aware, and `clickup pr-task` is git-free.
+  9. **Open the PR.**  From inside the worktree: run `pr` (no `--ai-review` unless the operator explicitly asked for it in the current request — see the "When to use `--ai-review`" rule above).  Per the "always use `pr`, never the `/pr-create` skill" section above.  `pr` works unchanged in a worktree — `git push` and `gh pr` are pwd-aware, and `clickup pr-task` is git-free.
   10. **Update the ExecPlan** if one applies — tick milestone checkboxes, add Surprises/Decisions.  Follow-up commit + `pr` updates the existing PR.
   11. **Leave the worktree in place** until the PR merges.  Cleanup post-merge is `git worktree remove ~/worktrees/CU-{taskid}-{slug}` — do not remove or `git branch -D` without explicit user approval.
 
