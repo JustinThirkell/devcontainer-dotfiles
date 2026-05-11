@@ -114,7 +114,17 @@
      - If a task ID was provided: `clickup get-task <id>` to fetch the task name.
   3. **Resolve the branch name.**  `infer_branch_name <task_id> "<task_name>"` (defined in `~/dotfiles/cp/git.zsh`) — pure string function, no git side-effects.  Returns `${ISSUE_BRANCH_PREFIX}/CU-{taskid}-{slug}`.
   4. **Create the worktree.**  `mkdir -p ~/worktrees && git -C /workspace worktree add ~/worktrees/CU-{taskid}-{slug} -b <branch>`.  Single command creates the branch off the current `/workspace` HEAD (master, per step 1) **and** checks it out into the worktree.  `/workspace` itself stays on master — free for a parallel session to use.
-  5. **Wire up `node_modules`.**  `ln -s /workspace/node_modules ~/worktrees/CU-{taskid}-{slug}/node_modules`.  The devcontainer's `node_modules` is a Docker volume mounted only at `/workspace/node_modules`, so a fresh worktree has no `node_modules` of its own.  Without the symlink, `yarn` commands fail with "Couldn't find the node_modules state file" and pre-commit hooks (lefthook) calling `./node_modules/.bin/biome` fail with "biome: not found".  Sharing the hoisted install is safe — never run `yarn install` from inside a worktree; do that in `/workspace`.
+  5. **Wire up `node_modules`.**  Each yarn/npm project root with its own install needs its own symlink — nested workspace packages do not, they are installed by their parent.  As of 2026-05, there are three project roots:
+
+     ```
+     ln -s /workspace/node_modules                         ~/worktrees/CU-{taskid}-{slug}/node_modules
+     ln -s /workspace/ui/node_modules                      ~/worktrees/CU-{taskid}-{slug}/ui/node_modules
+     ln -s /workspace/infra/stacks/public-api/node_modules ~/worktrees/CU-{taskid}-{slug}/infra/stacks/public-api/node_modules
+     ```
+
+     The devcontainer's `node_modules` are Docker volumes mounted only at those paths, so a fresh worktree has no `node_modules` of its own.  Without the symlinks: `yarn` commands fail with "Couldn't find the node_modules state file"; pre-commit `eslint` (lefthook scoped to `ui/`) fails the same way; `npx jest` from `infra/stacks/public-api/` cannot find jest.  Sharing the hoisted install is safe — never run `yarn install`/`npm install` from inside a worktree; do that in `/workspace`.
+
+     If a future master adds another yarn/npm project root, the same "state file" error will surface from the new path; add another symlink and update this list.  To discover candidates: `find /workspace -maxdepth 4 -type d -name node_modules -not -path '*/node_modules/*'`.
   6. **Mark task IN PROGRESS + sprint.**  `clickup start-task <id>` and `clickup add-task-to-current-sprint <id>`.  Both git-free.  (These are the bits `cp_start_task` does *after* its checkout; we run them directly.)
   7. **Code / test dev loop.**  Operate inside `~/worktrees/CU-{taskid}-{slug}/` using absolute paths.  TDD red/green per project standards.  ExecPlan reads and updates happen inside the worktree (the plan file is in-repo, so the worktree has its own copy).
   8. **Commit.**  Logical units; `[CU-{taskid}]` prefix in the message body, not the subject.
