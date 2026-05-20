@@ -66,6 +66,36 @@ Cleans up merged branches:
 2. For each, extracts the task ID and marks the ClickUp task as DONE.
 3. Deletes the local branches (`git bclean`).
 
+## Investigating CI failures
+
+  The devcontainer's `gh` token lacks perms for status-check rollups and check-run annotations, so several common commands either return 403 or
+  fail silently with no output.  Skip the broken ones and use the API-direct path below.
+
+  **Don't use** (will 403 or return nothing — no point retrying):
+
+  - `gh pr checks <pr-number>` — GraphQL rollup, 403s on every status context.
+  - `gh run view <run-id>` — 403 fetching annotations.
+  - `gh run view <run-id> --log` / `--log-failed` — silent (no output, no error).
+  - `gh run view --job <job-id> --log` — same silent failure.
+
+  **Use instead:**
+
+  1. **Find failing runs on the PR's branch.**
+     gh run list --branch  --limit 10
+  Tab-separated columns:
+  `status\tconclusion\tworkflow\tjob\tbranch\tevent\trun-id\tduration\tcreated-at`.  Filter rows where
+  `conclusion = failure`.
+  
+  2. **List jobs inside the failing run** to identify the failing job and its id:
+     gh api repos///actions/runs//jobs
+       --jq '.jobs[] | {name, conclusion, html_url}'
+  The `html_url` ends with `/job/<job-id>`.
+  
+  3. **Pull the failing job's raw log** (often large — pipe to `tail`/`grep`):
+     gh api repos///actions/jobs//logs 2>&1 | tail -80 
+
+  Tip: get `<owner>/<repo>` via `gh repo view --json nameWithOwner -q .nameWithOwner`.
+
 ## ClickUp CLI (`clickup <command>`)
 
 Low-level wrapper around the ClickUp API (via `~/dotfiles/clickup/clickup.ts`):
