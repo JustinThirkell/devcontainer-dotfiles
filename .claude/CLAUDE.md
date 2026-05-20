@@ -1,112 +1,112 @@
-  # Personal workflow (Justin)
+# Personal workflow (Justin)
 
-  This file is installed by dotfiles in a devcontainer and describes shell workflow commands available in the devcontainer.
-  These are zsh functions sourced from `~/dotfiles/cp/` and `~/dotfiles/clickup/`.
+This file is installed by dotfiles in a devcontainer and describes shell workflow commands available in the devcontainer.
+These are zsh functions sourced from `~/dotfiles/cp/` and `~/dotfiles/clickup/`.
 
-  ## Environment
+## Environment
 
-  - `ISSUE_BRANCH_PREFIX=justin`
-  - `GITHUB_DEFAULT_PR_REVIEWER=Carepatron/platform`
-  - Branch format: `justin/CU-{taskid}-{slug}` (e.g. `justin/CU-86ewvt64k-unit-tests`)
-  - PR title format: `[CU-{taskid}] {Capitalized title}` (e.g. `[CU-86ewvt64k] Unit tests`)
+- `ISSUE_BRANCH_PREFIX=justin`
+- `GITHUB_DEFAULT_PR_REVIEWER=Carepatron/platform`
+- Branch format: `justin/CU-{taskid}-{slug}` (e.g. `justin/CU-86ewvt64k-unit-tests`)
+- PR title format: `[CU-{taskid}] {Capitalized title}` (e.g. `[CU-86ewvt64k] Unit tests`)
 
-  ## Workflow commands
+## Workflow commands
 
-  ### `new` / `cp_new_task <title> <description> [--no-assignment] [--no-start]`
+### `new` / `cp_new_task <title> <description> [--no-assignment] [--no-start]`
 
-  Creates a ClickUp task and (by default) immediately starts it via `cp_start_task`.
-  Use `--no-start` to create without starting.  Use `--no-assignment` to skip assigning.
+Creates a ClickUp task and (by default) immediately starts it via `cp_start_task`.
+Use `--no-start` to create without starting.  Use `--no-assignment` to skip assigning.
 
-  ### `start` / `cp_start_task <task-id>`
+### `start` / `cp_start_task <task-id>`
 
-  Starts work on a ClickUp task:
+Starts work on a ClickUp task:
 
-  1. Fetches task name from ClickUp API.
-  2. Creates and checks out branch `justin/CU-{taskid}-{slug}` (or checks out if it exists).
-  3. Marks task as IN PROGRESS in ClickUp.
-  4. Adds task to the current sprint.
+1. Fetches task name from ClickUp API.
+2. Creates and checks out branch `justin/CU-{taskid}-{slug}` (or checks out if it exists).
+3. Marks task as IN PROGRESS in ClickUp.
+4. Adds task to the current sprint.
 
-  Accepts a task ID or a ClickUp URL (e.g. `https://app.clickup.com/t/86ewdbtbh`).
+Accepts a task ID or a ClickUp URL (e.g. `https://app.clickup.com/t/86ewdbtbh`).
 
-  ### `pr` / `cp_pr_task [--body DESCRIPTION] [--ai-review | -ar | --greptile]`
+### `pr` / `cp_pr_task [--body DESCRIPTION] [--ai-review | -ar | --greptile]`
 
-  Creates or updates a PR for the current branch:
+Creates or updates a PR for the current branch:
 
-  1. Pushes the current branch (sets upstream if needed).
-  2. Extracts task ID from branch name.
-  3. Fetches task name/description from ClickUp API.
-  4. Generates PR title as `[CU-{taskid}] {Capitalized title}`.
-  5. Creates a **draft** PR with reviewer `Carepatron/platform`, or updates an existing PR.
-  6. Marks the ClickUp task as IN REVIEW.
+1. Pushes the current branch (sets upstream if needed).
+2. Extracts task ID from branch name.
+3. Fetches task name/description from ClickUp API.
+4. Generates PR title as `[CU-{taskid}] {Capitalized title}`.
+5. Creates a **draft** PR with reviewer `Carepatron/platform`, or updates an existing PR.
+6. Marks the ClickUp task as IN REVIEW.
 
-  Use `--body` to provide a custom PR description; otherwise uses the ClickUp task description.
-  Use `--ai-review` (aliases: `-ar`, `--greptile`) to add the `greptile` label so the Greptile AI reviewer bot reviews this PR.
+Use `--body` to provide a custom PR description; otherwise uses the ClickUp task description.
+Use `--ai-review` (aliases: `-ar`, `--greptile`) to add the `greptile` label so the Greptile AI reviewer bot reviews this PR.
 
-  #### When to use `--ai-review` / `-ar` / `--greptile`
+#### When to use `--ai-review` / `-ar` / `--greptile`
 
-  **Never pass `--ai-review` (or its aliases `-ar`, `--greptile`) unless the operator has explicitly asked for it in the current request.**
+**Never pass `--ai-review` (or its aliases `-ar`, `--greptile`) unless the operator has explicitly asked for it in the current request.**
 
-  Greptile only reviews PRs that carry the `greptile` label, and Greptile runs are expensive — the operator opts in deliberately, per PR.  The agent does not get to judge "this change feels substantive enough, I'll add `--ai-review`".  That judgment is the operator's, not the agent's.
+Greptile only reviews PRs that carry the `greptile` label, and Greptile runs are expensive — the operator opts in deliberately, per PR.  The agent does not get to judge "this change feels substantive enough, I'll add `--ai-review`".  That judgment is the operator's, not the agent's.
 
-  Rules:
+Rules:
 
-  - Default: `pr` with no AI-review flag.  This applies to **every** PR — feature work, infrastructure changes, migrations, security-sensitive code, anything.  "Substantive" is not a trigger.
-  - Add `--ai-review` **only** when the operator's message in the current request contains an explicit instruction to do so.  Examples that count as explicit: "pr with greptile", "pr --ai-review", "use ai review", "add the greptile label", "open this with greptile".
-  - Examples that do **not** count as explicit: "this is a big change" (operator describing scope, not requesting review), "make sure this is reviewed carefully" (ambiguous — ask), "pr this" (no review flag mentioned — default to no flag).
-  - If the operator's intent is ambiguous, ask before adding the flag.  Do not infer.
-  - The operator can always add the `greptile` label to an existing PR after the fact.  Erring toward "no flag" is cheap to undo; erring toward "flag added" wastes a Greptile run.
+- Default: `pr` with no AI-review flag.  This applies to **every** PR — feature work, infrastructure changes, migrations, security-sensitive code, anything.  "Substantive" is not a trigger.
+- Add `--ai-review` **only** when the operator's message in the current request contains an explicit instruction to do so.  Examples that count as explicit: "pr with greptile", "pr --ai-review", "use ai review", "add the greptile label", "open this with greptile".
+- Examples that do **not** count as explicit: "this is a big change" (operator describing scope, not requesting review), "make sure this is reviewed carefully" (ambiguous — ask), "pr this" (no review flag mentioned — default to no flag).
+- If the operator's intent is ambiguous, ask before adding the flag.  Do not infer.
+- The operator can always add the `greptile` label to an existing PR after the fact.  Erring toward "no flag" is cheap to undo; erring toward "flag added" wastes a Greptile run.
 
-  Reason this rule is strict: previous wording carved out an "add it for substantive changes" exception that the agent leaned on to opt in unilaterally, which is exactly the wrong default.  The operator wants `--ai-review` to be opt-in via explicit instruction, full stop.
+Reason this rule is strict: previous wording carved out an "add it for substantive changes" exception that the agent leaned on to opt in unilaterally, which is exactly the wrong default.  The operator wants `--ai-review` to be opt-in via explicit instruction, full stop.
 
-  ### `cleanup` / `cp_cleanup_branches`
+### `cleanup` / `cp_cleanup_branches`
 
-  Cleans up merged branches:
+Cleans up merged branches:
 
-  1. Finds local branches whose remote tracking branch is gone.
-  2. For each, extracts the task ID and marks the ClickUp task as DONE.
-  3. Deletes the local branches (`git bclean`).
+1. Finds local branches whose remote tracking branch is gone.
+2. For each, extracts the task ID and marks the ClickUp task as DONE.
+3. Deletes the local branches (`git bclean`).
 
-  ## ClickUp CLI (`clickup <command>`)
+## ClickUp CLI (`clickup <command>`)
 
-  Low-level wrapper around the ClickUp API (via `~/dotfiles/clickup/clickup.ts`):
+Low-level wrapper around the ClickUp API (via `~/dotfiles/clickup/clickup.ts`):
 
-  - `clickup whoami` — show ClickUp user info
-  - `clickup get-task <id>` — fetch task details (JSON)
-  - `clickup start-task <id>` — set status to IN PROGRESS
-  - `clickup pr-task <id>` — set status to IN REVIEW
-  - `clickup complete-task <id>` — set status to DONE
-  - `clickup create-task <title> <description>` — create a task
-  - `clickup add-task-to-current-sprint <id>` — move task to current sprint
+- `clickup whoami` — show ClickUp user info
+- `clickup get-task <id>` — fetch task details (JSON)
+- `clickup start-task <id>` — set status to IN PROGRESS
+- `clickup pr-task <id>` — set status to IN REVIEW
+- `clickup complete-task <id>` — set status to DONE
+- `clickup create-task <title> <description>` — create a task
+- `clickup add-task-to-current-sprint <id>` — move task to current sprint
 
-  All commands accept `--debug` for verbose output.
+All commands accept `--debug` for verbose output.
 
-  ## Commits must always be signed
+## Commits must always be signed
 
-  Every `git commit` must be signed.  No exceptions.
+Every `git commit` must be signed.  No exceptions.
 
-  - **Never** pass `--no-gpg-sign`, `-c commit.gpgsign=false`, `-c gpg.format=…` to bypass or alter signing — even "defensively" or "to skip a hook".
-  - The devcontainer is pre-configured with SSH-key signing (`commit.gpgsign=true`, `gpg.format=ssh`, key at `~/.ssh/id_ed25519_signing`).  Trust it.  Don't probe it.
-  - If a `git commit` fails *because of* signing (key not found, agent locked, etc.), **surface the error and stop** — do not retry with signing disabled.  Ask the operator to fix the signing setup.
-  - This applies to every commit the agent makes: feature commits, fixup commits, amends, rebases.  Even on private branches.  Even on throwaway worktrees.  Even when the next step is going to squash-merge.
+- **Never** pass `--no-gpg-sign`, `-c commit.gpgsign=false`, `-c gpg.format=…` to bypass or alter signing — even "defensively" or "to skip a hook".
+- The devcontainer is pre-configured with SSH-key signing (`commit.gpgsign=true`, `gpg.format=ssh`, key at `~/.ssh/id_ed25519_signing`).  Trust it.  Don't probe it.
+- If a `git commit` fails *because of* signing (key not found, agent locked, etc.), **surface the error and stop** — do not retry with signing disabled.  Ask the operator to fix the signing setup.
+- This applies to every commit the agent makes: feature commits, fixup commits, amends, rebases.  Even on private branches.  Even on throwaway worktrees.  Even when the next step is going to squash-merge.
 
-  Reason: signed commits are the audit trail.  An unsigned commit on a feature branch survives review noise and ends up referenced from PR comments, rollback investigations, and bisects long after merge — even when the squash-merge commit on master is signed.  Mixed-signature branches signal "agent did something weird here" and erode trust in *every* commit on the branch.
+Reason: signed commits are the audit trail.  An unsigned commit on a feature branch survives review noise and ends up referenced from PR comments, rollback investigations, and bisects long after merge — even when the squash-merge commit on master is signed.  Mixed-signature branches signal "agent did something weird here" and erode trust in *every* commit on the branch.
 
-  ## PR creation — always use `pr`, never the `/pr-create` skill
+## PR creation — always use `pr`, never the `/pr-create` skill
 
-  For any request that means "make a PR" — including "pr this", "commit and PR", "create a pull request", "open a PR", "make a draft PR", etc. — run the `pr` zsh alias (`cp_pr_task`) in the shell, not the `/pr-create` skill.
+For any request that means "make a PR" — including "pr this", "commit and PR", "create a pull request", "open a PR", "make a draft PR", etc. — run the `pr` zsh alias (`cp_pr_task`) in the shell, not the `/pr-create` skill.
 
-  Reason: `pr` does additional useful work the skill doesn't:
+Reason: `pr` does additional useful work the skill doesn't:
 
-  - LLM-generated description from branch diff (when `--body` is omitted)
-  - Auto-opens the PR in browser
-  - Honours `--ai-review` / `-ar` / `--greptile` for Greptile bot opt-in (only when the operator explicitly asks — see the rule above)
-  - Marks the ClickUp task as IN REVIEW automatically
+- LLM-generated description from branch diff (when `--body` is omitted)
+- Auto-opens the PR in browser
+- Honours `--ai-review` / `-ar` / `--greptile` for Greptile bot opt-in (only when the operator explicitly asks — see the rule above)
+- Marks the ClickUp task as IN REVIEW automatically
 
-  ## Devcontainer worktree workflow
+## Devcontainer worktree workflow
 
-  When the user says "use devcontainer worktree workflow", "use the worktree workflow", "worktree this", or any close variant, follow the loop below for the requested task.  The motivation: each task lives in its own git worktree under `~/worktrees/`, so multiple parallel Claude Code sessions can work on different tasks without colliding on `/workspace`.
+When the user says "use devcontainer worktree workflow", "use the worktree workflow", "worktree this", or any close variant, follow the loop below for the requested task.  The motivation: each task lives in its own git worktree under `~/worktrees/`, so multiple parallel Claude Code sessions can work on different tasks without colliding on `/workspace`.
 
-  Use the lower-level primitives (`clickup create-task`, `infer_branch_name`, `git worktree add`, `clickup start-task`) — **not** the higher-level `new` / `start` shortcuts.  The shortcuts bake in `/workspace`-checkout-and-branch assumptions that conflict with worktrees; the primitives compose cleanly.
+Use the lower-level primitives (`clickup create-task`, `infer_branch_name`, `git worktree add`, `clickup start-task`) — **not** the higher-level `new` / `start` shortcuts.  The shortcuts bake in `/workspace`-checkout-and-branch assumptions that conflict with worktrees; the primitives compose cleanly.
 
   1. **Sync master.**  In `/workspace`, `git fetch origin && git checkout master && git pull --ff-only`.  Skip if `/workspace` is already on master and up to date.  Never pull while on a feature branch.
   2. **Create or resolve the task.**
@@ -132,10 +132,10 @@
   10. **Update the ExecPlan** if one applies — tick milestone checkboxes, add Surprises/Decisions.  Follow-up commit + `pr` updates the existing PR.
   11. **Leave the worktree in place** until the PR merges.  Cleanup post-merge is `git worktree remove ~/worktrees/CU-{taskid}-{slug}` — do not remove or `git branch -D` without explicit user approval.
 
-  Constraints that apply throughout:
+Constraints that apply throughout:
 
-  - Never check out a feature branch in `/workspace` itself — that would block parallel sessions.  All feature work happens in worktrees.
-  - Never run `yarn install` (or any other tool that mutates `node_modules`) from inside a worktree.  All worktrees share `/workspace/node_modules` via symlink, so an install from a worktree would race against `/workspace` and any other worktree session.
-  - Never force-push, `reset --hard`, or `branch -D` without explicit approval.
-  - Use absolute paths into the worktree directory in tool calls; do not rely on shell `cd` persistence assumptions.
-  - `~/worktrees/` is per-devcontainer-instance state and is not in dotfiles.
+- Never check out a feature branch in `/workspace` itself — that would block parallel sessions.  All feature work happens in worktrees.
+- Never run `yarn install` (or any other tool that mutates `node_modules`) from inside a worktree.  All worktrees share `/workspace/node_modules` via symlink, so an install from a worktree would race against `/workspace` and any other worktree session.
+- Never force-push, `reset --hard`, or `branch -D` without explicit approval.
+- Use absolute paths into the worktree directory in tool calls; do not rely on shell `cd` persistence assumptions.
+- `~/worktrees/` is per-devcontainer-instance state and is not in dotfiles.
