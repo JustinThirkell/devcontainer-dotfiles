@@ -12,12 +12,15 @@ These are zsh functions sourced from `~/dotfiles/cp/` and `~/dotfiles/clickup/`.
 
 ## Workflow commands
 
-### `new` / `cp_new_task <title> <description> [--no-assignment] [--no-start]`
+### `new` / `cp_new_task <title> [description] [--no-assignment] [--no-start] [--worktree]`
 
 Creates a ClickUp task and (by default) immediately starts it via `cp_start_task`.
-Use `--no-start` to create without starting.  Use `--no-assignment` to skip assigning.
 
-### `start` / `cp_start_task <task-id>`
+- `--no-start` creates the task without starting work on it.
+- `--no-assignment` skips assigning the task.
+- `--worktree` uses the [devcontainer worktree workflow](#devcontainer-worktree-workflow): instead of checking out the branch in the current repo, creates a fresh git worktree under `~/worktrees/CU-<id>-<slug>` off `origin/master` and wires up the standard node_modules symlinks.  `/workspace` stays on its current branch.  Devcontainer-only.  Cannot be combined with `--no-start`.
+
+### `start` / `cp_start_task <task-id> [--worktree]`
 
 Starts work on a ClickUp task:
 
@@ -27,6 +30,8 @@ Starts work on a ClickUp task:
 4. Adds task to the current sprint.
 
 Accepts a task ID or a ClickUp URL (e.g. `https://app.clickup.com/t/86ewdbtbh`).
+
+- `--worktree` replaces step 2 with the [devcontainer worktree workflow](#devcontainer-worktree-workflow): creates a fresh worktree off `origin/master` instead of checking out in the current repo.  Devcontainer-only.
 
 ### `pr` / `cp_pr_task [--body DESCRIPTION] [--ai-review | -ar | --greptile] [--no-slack] [--channel CHANNEL_ID]`
 
@@ -67,7 +72,8 @@ Cleans up merged branches:
 
 1. Finds local branches whose remote tracking branch is gone.
 2. For each, extracts the task ID and marks the ClickUp task as DONE.
-3. Deletes the local branches (`git bclean`).
+3. Removes worktrees for the gone branches (`git worktree remove`).
+4. Deletes the local branches (`git bclean`).
 
 ## Investigating CI failures
 
@@ -149,40 +155,49 @@ Reason: `pr` does additional useful work the skill doesn't:
 
 ## Devcontainer worktree workflow
 
-When the user says "use devcontainer worktree workflow", "use the worktree workflow", "worktree this", or any close variant, follow the loop below for the requested task.  The motivation: each task lives in its own git worktree under `~/worktrees/`, so multiple parallel Claude Code sessions can work on different tasks without colliding on `/workspace`.
+When the user says "use devcontainer worktree workflow", "use the worktree workflow", "worktree this", or any close variant, use the `--worktree` flag on `new` (for a brand-new task) or `start` (for an existing task ID).  The motivation: each task lives in its own git worktree under `~/worktrees/`, so multiple parallel Claude Code sessions can work on different tasks without colliding on `/workspace`.
 
-Use the lower-level primitives (`clickup create-task`, `infer_branch_name`, `git worktree add`, `clickup start-task`) — **not** the higher-level `new` / `start` shortcuts.  The shortcuts bake in `/workspace`-checkout-and-branch assumptions that conflict with worktrees; the primitives compose cleanly.
+```zsh
+# Brand-new task — creates ClickUp task + worktree + branch + symlinks + IN PROGRESS + sprint:
+new --worktree "Task title" [description]
 
-  1. **Sync master.**  In `/workspace`, `git fetch origin && git checkout master && git pull --ff-only`.  Skip if `/workspace` is already on master and up to date.  Never pull while on a feature branch.
-  2. **Create or resolve the task.**
-     - If no task ID was provided: `clickup create-task "<title>" "<description>"`.  Captures task id + name from the returned JSON.  This is git-free (unlike `new` / `cp_new_task`, which calls `cp_start_task` and checks out a branch in `/workspace`).
-     - If a task ID was provided: `clickup get-task <id>` to fetch the task name.
-  3. **Resolve the branch name.**  `infer_branch_name <task_id> "<task_name>"` (defined in `~/dotfiles/cp/git.zsh`) — pure string function, no git side-effects.  Returns `${ISSUE_BRANCH_PREFIX}/CU-{taskid}-{slug}`.
-  4. **Create the worktree.**  `mkdir -p ~/worktrees && git -C /workspace worktree add ~/worktrees/CU-{taskid}-{slug} -b <branch>`.  Single command creates the branch off the current `/workspace` HEAD (master, per step 1) **and** checks it out into the worktree.  `/workspace` itself stays on master — free for a parallel session to use.
-  5. **Wire up `node_modules`.**  Each yarn/npm project root with its own install needs its own symlink — nested workspace packages do not, they are installed by their parent.  As of 2026-05, there are three project roots:
+# Existing task ID:
+start --worktree <task-id>
+```
 
-     ```
-     ln -s /workspace/node_modules                         ~/worktrees/CU-{taskid}-{slug}/node_modules
-     ln -s /workspace/ui/node_modules                      ~/worktrees/CU-{taskid}-{slug}/ui/node_modules
-     ln -s /workspace/infra/stacks/public-api/node_modules ~/worktrees/CU-{taskid}-{slug}/infra/stacks/public-api/node_modules
-     ```
+Behind the scenes (in `~/dotfiles/cp/{git,workflow}.zsh`), the `--worktree` flag routes through `git_worktree_for_task_branch`, which:
 
-     A fresh worktree has no `node_modules` of its own — but for two different reasons, depending on the path.  `/workspace/node_modules` is a Docker named volume mounted **only** at `/workspace/node_modules`, so anywhere outside that exact path (including any `~/worktrees/...` directory) sees nothing there.  `/workspace/ui/node_modules` and `/workspace/infra/stacks/public-api/node_modules` are **part of the host bind mount** (`/workspace` ↔ the macOS host project dir) — they are not separate volumes, and they only exist under `/workspace`; anything outside that subtree (again, including `~/worktrees/...`) sees nothing.  In both cases the symlink fixes it by pointing the worktree at the same files `/workspace` already uses.  Without the symlinks: `yarn` commands fail with "Couldn't find the node_modules state file"; pre-commit `eslint` (lefthook scoped to `ui/`) fails the same way; `npx jest` from `infra/stacks/public-api/` cannot find jest.
+1. `git -C /workspace fetch origin` (so the worktree is rooted at fresh master, not whatever HEAD `/workspace` happens to be on).
+2. `git -C /workspace worktree add ~/worktrees/CU-{taskid}-{slug} -b ${ISSUE_BRANCH_PREFIX}/CU-{taskid}-{slug} origin/master`.
+3. Symlinks each path in `CP_WORKTREE_NODE_MODULES_PATHS` (defined in `cp/git.zsh`) into the worktree.  Currently three: `/workspace/node_modules`, `/workspace/ui/node_modules`, `/workspace/infra/stacks/public-api/node_modules`.
 
-     The "never run `yarn install`/`npm install` from inside a worktree" rule still applies, but the reason is concurrency, not isolation: all worktrees and `/workspace` share **one** physical `node_modules` tree (via the symlinks and the bind mount), so two installs racing — one in `/workspace` and one in a worktree, or two worktrees at once — would corrupt that shared tree.  Do installs in `/workspace`, never concurrently with another session.  The one narrow exception is when the install needs to pick up a `.yarnrc.yml`/`package.json` change that only exists in the worktree's branch — e.g. testing a `supportedArchitectures` addition before merge.  In that case, confirm no other session is active and run it from the worktree once.
+The function fails fast on conflict (existing worktree path, existing local branch) and prints a `cd ~/worktrees/<slug>` hint at the end.
 
-     If a future master adds another yarn/npm project root, the same "state file" error will surface from the new path; add another symlink and update this list.  To discover candidates: `find /workspace -maxdepth 4 -type d -name node_modules -not -path '*/node_modules/*'`.
-  6. **Mark task IN PROGRESS + sprint.**  `clickup start-task <id>` and `clickup add-task-to-current-sprint <id>`.  Both git-free.  (These are the bits `cp_start_task` does *after* its checkout; we run them directly.)
-  7. **Code / test dev loop.**  Operate inside `~/worktrees/CU-{taskid}-{slug}/` using absolute paths.  TDD red/green per project standards.  ExecPlan reads and updates happen inside the worktree (the plan file is in-repo, so the worktree has its own copy).
-  8. **Commit.**  Logical units; `[CU-{taskid}]` prefix in the message body, not the subject.
-  9. **Open the PR.**  From inside the worktree: run `pr` (no `--ai-review` unless the operator explicitly asked for it in the current request — see the "When to use `--ai-review`" rule above).  Per the "always use `pr`, never the `/pr-create` skill" section above.  `pr` works unchanged in a worktree — `git push` and `gh pr` are pwd-aware, and `clickup pr-task` is git-free.
-  10. **Update the ExecPlan** if one applies — tick milestone checkboxes, add Surprises/Decisions.  Follow-up commit + `pr` updates the existing PR.
-  11. **Leave the worktree in place** until the PR merges.  Cleanup post-merge is `git worktree remove ~/worktrees/CU-{taskid}-{slug}` — do not remove or `git branch -D` without explicit user approval.
+After the worktree exists:
 
-Constraints that apply throughout:
+  1. **`cd ~/worktrees/CU-{taskid}-{slug}/`** and operate inside it using absolute paths.  TDD red/green per project standards.  ExecPlan reads and updates happen inside the worktree (the plan file is in-repo, so the worktree has its own copy).
+  2. **Commit.**  Logical units; `[CU-{taskid}]` prefix in the message body, not the subject.  Signed, hooks must run (see signing + lefthook rules above).
+  3. **Open the PR.**  From inside the worktree: run `pr` (no `--ai-review` unless the operator explicitly asked for it in the current request — see the "When to use `--ai-review`" rule above).  Per the "always use `pr`, never the `/pr-create` skill" section above.  `pr` works unchanged in a worktree — `git push` and `gh pr` are pwd-aware, and `clickup pr-task` is git-free.
+  4. **Update the ExecPlan** if one applies — tick milestone checkboxes, add Surprises/Decisions.  Follow-up commit + `pr` updates the existing PR.
+  5. **Leave the worktree in place** until the PR merges.  Post-merge, run `cleanup` (alias for `cp_cleanup_branches`) — it removes worktrees whose upstream is gone, marks the ClickUp task DONE, and deletes the local branch.  Don't manually `git worktree remove` or `git branch -D` without explicit user approval.
 
-- Never check out a feature branch in `/workspace` itself — that would block parallel sessions.  All feature work happens in worktrees.
-- Never run `yarn install` (or any other tool that mutates `node_modules`) from inside a worktree.  All worktrees share `/workspace/node_modules` via symlink, so an install from a worktree would race against `/workspace` and any other worktree session.
-- Never force-push, `reset --hard`, or `branch -D` without explicit approval.
-- Use absolute paths into the worktree directory in tool calls; do not rely on shell `cd` persistence assumptions.
+### Why this works (background)
+
+A fresh worktree under `~/worktrees/...` has no `node_modules` of its own — but for two different reasons, depending on the path:
+
+- `/workspace/node_modules` is a Docker named volume mounted **only** at `/workspace/node_modules`, so anywhere outside that exact path (including any `~/worktrees/...` directory) sees nothing there.
+- `/workspace/ui/node_modules` and `/workspace/infra/stacks/public-api/node_modules` are **part of the host bind mount** (`/workspace` ↔ the macOS host project dir).  They aren't separate volumes; they only exist under `/workspace`.  Anything outside that subtree (again, including `~/worktrees/...`) sees nothing.
+
+In both cases, the symlinks (wired up automatically by `--worktree`) fix it by pointing the worktree at the same files `/workspace` already uses.  Without the symlinks: `yarn` commands fail with "Couldn't find the node_modules state file"; pre-commit `eslint` (lefthook scoped to `ui/`) fails the same way; `npx jest` from `infra/stacks/public-api/` cannot find jest.
+
+The "never run `yarn install`/`npm install` from inside a worktree" rule is about **concurrency, not isolation**: all worktrees and `/workspace` share **one** physical `node_modules` tree (via the symlinks and the bind mount), so two installs racing — one in `/workspace` and one in a worktree, or two worktrees at once — would corrupt that shared tree.  Do installs in `/workspace`, never concurrently with another session.  The one narrow exception: when the install needs to pick up a `.yarnrc.yml`/`package.json` change that only exists in the worktree's branch (e.g. testing a `supportedArchitectures` addition before merge).  In that case, confirm no other session is active and run it from the worktree once.
+
+If a future master adds another yarn/npm project root, the same "state file" error will surface from the new path.  Fix it by adding the path to `CP_WORKTREE_NODE_MODULES_PATHS` in `~/dotfiles/cp/git.zsh`.  To discover candidates: `find /workspace -maxdepth 4 -type d -name node_modules -not -path '*/node_modules/*'`.
+
+### Constraints
+
+- **Never check out a feature branch in `/workspace` itself** — that would block parallel sessions.  All feature work happens in worktrees.
+- **Never run `yarn install`** (or any other tool that mutates `node_modules`) from inside a worktree, except for the narrow `.yarnrc.yml`/`package.json` testing exception described above.  Do installs in `/workspace`, never concurrently with another session.
+- **Never force-push, `reset --hard`, or `branch -D`** without explicit approval.
+- **Use absolute paths** into the worktree directory in tool calls; do not rely on shell `cd` persistence assumptions.
 - `~/worktrees/` is per-devcontainer-instance state and is not in dotfiles.

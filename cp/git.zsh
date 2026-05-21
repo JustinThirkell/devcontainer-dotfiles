@@ -226,6 +226,200 @@ git_checkout_task_branch() {
   fi
 }
 
+# Standard node_modules paths to symlink into a worktree.  These are the
+# yarn/npm project roots in the Carepatron-App devcontainer.
+#
+# Add new entries when a new yarn/npm project root appears on master.
+# Discover candidates with:
+#   find /workspace -maxdepth 4 -type d -name node_modules -not -path '*/node_modules/*'
+CP_WORKTREE_NODE_MODULES_PATHS=(
+  "/workspace/node_modules"
+  "/workspace/ui/node_modules"
+  "/workspace/infra/stacks/public-api/node_modules"
+)
+
+# Wire up node_modules symlinks inside a fresh worktree, pointing at the
+# matching paths under /workspace.  Devcontainer-only — the assumption is
+# that /workspace's node_modules (whether a Docker named volume for the root
+# or a bind-mounted dir from the macOS host for ui/ and infra/stacks/public-api/)
+# is the source of truth, and worktrees just share it via symlink.
+#
+# Without these, yarn commands from inside the worktree fail with "Couldn't
+# find the node_modules state file"; pre-commit eslint (lefthook scoped to
+# ui/) fails the same way; npx jest from infra/stacks/public-api/ cannot
+# find jest.
+#
+# Concurrency note: all worktrees + /workspace share ONE physical
+# node_modules tree, so concurrent `yarn install`s from different worktrees
+# would corrupt that tree.  Do installs in /workspace, not in worktrees.
+#
+# Usage: _cp_worktree_link_node_modules <worktree-dir> [--debug]
+_cp_worktree_link_node_modules() {
+  local wt_dir="$1"
+  local DEBUG=false
+  [[ "$2" == "--debug" ]] && DEBUG=true
+
+  if [[ -z "$wt_dir" || ! -d "$wt_dir" ]]; then
+    error "_cp_worktree_link_node_modules: worktree dir is required and must exist"
+    return 1
+  fi
+
+  local src target_rel target_abs
+  for src in "${CP_WORKTREE_NODE_MODULES_PATHS[@]}"; do
+    # target_rel is the portion of src after "/workspace/", e.g. "ui/node_modules".
+    target_rel="${src#/workspace/}"
+    target_abs="$wt_dir/$target_rel"
+
+    if [[ ! -d "$src" ]]; then
+      [[ "$DEBUG" == "true" ]] && debug "Source $src does not exist; skipping symlink"
+      continue
+    fi
+
+    if [[ -e "$target_abs" || -L "$target_abs" ]]; then
+      [[ "$DEBUG" == "true" ]] && debug "Target $target_abs already exists; skipping symlink"
+      continue
+    fi
+
+    # Ensure parent dir exists (worktree may not have it if the path is deep
+    # and the package.json under that path is the only thing checked out).
+    mkdir -p "$(dirname "$target_abs")"
+
+    if ln -s "$src" "$target_abs"; then
+      [[ "$DEBUG" == "true" ]] && debug "Linked $target_abs -> $src"
+    else
+      error "Failed to link $target_abs -> $src"
+      return 1
+    fi
+  done
+}
+
+# Create a git worktree for a ClickUp task, off origin/master, with the
+# standard devcontainer node_modules symlinks wired up.
+#
+# Branch name is derived via infer_branch_name; worktree dir mirrors the
+# branch's slug portion (everything after the "${ISSUE_BRANCH_PREFIX}/"
+# prefix) and lives under ~/worktrees/.
+#
+# Devcontainer-only: assumes /workspace is the canonical repo root and the
+# node_modules paths under /workspace are populated.  Fails early on host.
+#
+# Side effects:
+#   - git -C /workspace fetch origin  (so origin/master is current)
+#   - Creates ~/worktrees/<slug>/ as a new worktree
+#   - Symlinks node_modules paths into the worktree
+#
+# Usage: git_worktree_for_task_branch <task-id> [--debug]
+# On success: prints the absolute worktree path to stdout (last line).
+git_worktree_for_task_branch() {
+  local DEBUG=false
+  local task_id=""
+
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --debug)
+      DEBUG=true
+      shift
+      ;;
+    *)
+      if [[ -z "$task_id" ]]; then
+        task_id="$1"
+      else
+        error "Unknown option or multiple task IDs provided: $1"
+        echo "Usage: git_worktree_for_task_branch <task-id> [--debug]"
+        return 1
+      fi
+      shift
+      ;;
+    esac
+  done
+
+  if [[ -z "$task_id" ]]; then
+    error "Task ID is required for git_worktree_for_task_branch"
+    return 1
+  fi
+
+  if [[ ! -d /workspace/.git ]]; then
+    error "/workspace is not a git repo — devcontainer worktree workflow needs /workspace."
+    info "On the macOS host, use the standard 'start' / 'new' instead (no --worktree)."
+    return 1
+  fi
+
+  info "📝 Fetching task details for $task_id using ClickUp CLI"
+  local task
+  task=$(clickup get-task "$task_id")
+  if [[ $? -ne 0 || -z "$task" ]]; then
+    error "Could not fetch task details from ClickUp for task ID: $task_id"
+    return 1
+  fi
+
+  local sanitized_task task_name
+  sanitized_task=$(tr -d '\000-\037' <<<"$task")
+  task_name=$(jq -r '.name' <<<"$sanitized_task")
+  if [[ -z "$task_name" || "$task_name" == "null" ]]; then
+    error "Could not extract task name from ClickUp response for task ID: $task_id"
+    return 1
+  fi
+  info "Task name: $task_name"
+
+  local branch_name
+  branch_name=$(infer_branch_name "$task_id" "$task_name" "$DEBUG")
+  if [[ $? -ne 0 ]]; then
+    error "Failed to infer branch name"
+    return 1
+  fi
+
+  # Worktree dir mirrors the branch's slug portion (after the "${PREFIX}/").
+  # e.g. branch justin/CU-86exp3md4-foo  ->  ~/worktrees/CU-86exp3md4-foo
+  local slug="${branch_name#*/}"
+  local wt_dir="$HOME/worktrees/$slug"
+
+  if [[ -e "$wt_dir" ]]; then
+    error "Worktree path already exists: $wt_dir"
+    info "If you want to reuse it, cd into it.  Otherwise remove it first:"
+    info "  git -C /workspace worktree remove $wt_dir"
+    return 1
+  fi
+
+  if git -C /workspace show-ref --verify --quiet refs/heads/"$branch_name"; then
+    error "Branch already exists locally: $branch_name"
+    info "Either delete the branch first (git -C /workspace branch -D $branch_name)"
+    info "or attach the worktree to the existing branch manually:"
+    info "  git -C /workspace worktree add $wt_dir $branch_name"
+    return 1
+  fi
+
+  info "Fetching origin so worktree is based on current master"
+  if ! git -C /workspace fetch origin --quiet; then
+    error "git -C /workspace fetch origin failed"
+    return 1
+  fi
+
+  info "Creating worktree at $wt_dir (branch $branch_name off origin/master)"
+  mkdir -p "$HOME/worktrees"
+  if ! git -C /workspace worktree add "$wt_dir" -b "$branch_name" origin/master; then
+    error "git worktree add failed"
+    return 1
+  fi
+
+  info "Wiring up node_modules symlinks"
+  if [[ "$DEBUG" == "true" ]]; then
+    _cp_worktree_link_node_modules "$wt_dir" --debug
+  else
+    _cp_worktree_link_node_modules "$wt_dir"
+  fi
+  local link_exit=$?
+  if [[ $link_exit -ne 0 ]]; then
+    error "Failed to wire up node_modules symlinks (worktree left in place at $wt_dir)"
+    return 1
+  fi
+
+  info "✅ Worktree ready: $wt_dir"
+  info "Next: cd $wt_dir"
+
+  # Last line of stdout is the worktree path — callers can capture it with $(…)
+  echo "$wt_dir"
+}
+
 git_pr_task_branch() {
 
   # Default options
@@ -339,7 +533,7 @@ git_pr_task_branch() {
 
   # Keep task ID for use in description
   local id="$task_id_from_branch"
-  
+
   # Capitalize title for use in description
   local title_capitalized
   title_capitalized=$(awk '{print toupper(substr($0,1,1)) substr($0,2)}' <<<"$task_name")
@@ -365,7 +559,7 @@ concise, informative, and detailed PR description that summarizes the changes. \
 Here is the ClickUp task context for this PR:\n\n${clickup_task_context}. \
 \nUse sections that are correctly formatted markdown:\
 # Purpose -> concise overview of why the PR has been created.  Try to use the task title if available.\
-## Context -> background information about the PR. USE task context if available, particularly the task description. 
+## Context -> background information about the PR. USE task context if available, particularly the task description.
 \nUse line breaks to ensure they are correctly formatted markdown. \
 Do not use emojis. \
 At the end, include a note in italics stating that this summary was written by an LLM, and to tag Justin if you're not happy with it. \
@@ -439,12 +633,12 @@ Only return the PR description, don't return anything else."
     # Create new PR via CLI (so we can set reviewer); then open in browser.
     # --web is not used because it doesn't support --reviewer.
     local pr_args=(--title "$pr_title" --draft)
-    
+
     # Add optional flags
     if [[ "$SKIP_LLM" != "true" || (-n "$pr_description" && "$pr_description" != "") ]]; then
       pr_args+=(--body "$pr_description")
     fi
-    
+
     if [[ -n "$reviewer" ]]; then
       pr_args+=(--reviewer "$reviewer")
     fi
@@ -452,7 +646,7 @@ Only return the PR description, don't return anything else."
     if [[ "$ai_review" == true ]]; then
       pr_args+=(--label "$ai_review_label")
     fi
-    
+
     if [[ "$SKIP_LLM" == "true" && (-n "$pr_description" && "$pr_description" != "") ]]; then
       info "🆕 Creating new PR (with description)"
     elif [[ "$SKIP_LLM" == "true" ]]; then
@@ -460,7 +654,7 @@ Only return the PR description, don't return anything else."
     else
       info "🆕 Creating new PR"
     fi
-    
+
     debug "Executing: gh pr create ${pr_args[*]}"
     gh pr create "${pr_args[@]}"
     echo "🎉 Successfully created PR"

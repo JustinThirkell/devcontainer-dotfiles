@@ -3,19 +3,26 @@ cp_new_task() {
   local description=""
   local no_assignment=false
   local start=true
+  local use_worktree=false
   local DEBUG=false
 
-  local help_text='Usage: cp_new_task <title> [description] [--no-assignment] [--no-start] [--debug] [-h|--help]
+  local help_text='Usage: cp_new_task <title> [description] [--no-assignment] [--no-start] [--worktree] [--debug] [-h|--help]
 
 Creates a ClickUp task and (by default) immediately starts it via cp_start_task.
 
 Options:
   --no-assignment   Skip assigning the task.
   --no-start        Create the task without starting work on it.
+  --worktree        Devcontainer worktree workflow: instead of checking out
+                    the branch in the current repo, create a fresh git worktree
+                    under ~/worktrees/CU-<id>-<slug> off origin/master and wire
+                    up the standard node_modules symlinks.  /workspace stays on
+                    its current branch.  Devcontainer-only.
   --debug           Verbose output.
   -h, --help        Show this help.
 
-Example: cp_new_task "Fix login bug" "Description of the fix"'
+Example: cp_new_task "Fix login bug" "Description of the fix"
+         cp_new_task --worktree "Refactor auth"  # parallel session in a worktree'
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -29,6 +36,10 @@ Example: cp_new_task "Fix login bug" "Description of the fix"'
       ;;
     --no-start)
       start=false
+      shift
+      ;;
+    --worktree)
+      use_worktree=true
       shift
       ;;
     --debug)
@@ -53,6 +64,11 @@ Example: cp_new_task "Fix login bug" "Description of the fix"'
   if [[ -z "$title" ]]; then
     error "Title is required"
     echo "$help_text"
+    return 1
+  fi
+
+  if [[ "$use_worktree" == "true" && "$start" != "true" ]]; then
+    error "--worktree is only meaningful with --start (the default).  Drop --no-start, or drop --worktree."
     return 1
   fi
 
@@ -90,7 +106,10 @@ Example: cp_new_task "Fix login bug" "Description of the fix"'
   fi
 
   if [[ "$start" == "true" ]]; then
-    cp_start_task "$task_id"
+    local -a start_args=("$task_id")
+    [[ "$use_worktree" == "true" ]] && start_args+=(--worktree)
+    [[ "$DEBUG" == "true" ]] && start_args+=(--debug)
+    cp_start_task "${start_args[@]}"
   else
     if command -v pbcopy &>/dev/null; then
       echo -n "$task_id" | pbcopy
@@ -107,8 +126,9 @@ alias new=cp_new_task
 cp_start_task() {
   local DEBUG=false
   local task_id=""
+  local use_worktree=false
 
-  local help_text='Usage: cp_start_task <task-id> [--debug] [-h|--help]
+  local help_text='Usage: cp_start_task <task-id> [--worktree] [--debug] [-h|--help]
 
 Starts work on a ClickUp task:
   1. Checks out branch ${ISSUE_BRANCH_PREFIX}/CU-{taskid}-{slug}.
@@ -118,11 +138,17 @@ Starts work on a ClickUp task:
 Accepts a task ID or a ClickUp URL.
 
 Options:
+  --worktree    Devcontainer worktree workflow: instead of checking out the
+                branch in the current repo, create a fresh git worktree
+                under ~/worktrees/CU-<id>-<slug> off origin/master and wire
+                up the standard node_modules symlinks.  /workspace stays on
+                its current branch.  Devcontainer-only.
   --debug       Verbose output.
   -h, --help    Show this help.
 
 Examples:
   cp_start_task 86ew4x0vz
+  cp_start_task 86ew4x0vz --worktree
   cp_start_task https://app.clickup.com/t/86ewdbtbh'
 
   while [[ $# -gt 0 ]]; do
@@ -130,6 +156,10 @@ Examples:
     -h|--help)
       echo "$help_text"
       return 0
+      ;;
+    --worktree)
+      use_worktree=true
+      shift
       ;;
     --debug)
       DEBUG=true
@@ -150,6 +180,7 @@ Examples:
 
   [[ "$DEBUG" == "true" ]] && echo "Debug mode enabled"
   [[ "$DEBUG" == "true" ]] && debug "Task ID: $task_id"
+  [[ "$DEBUG" == "true" ]] && debug "use_worktree: $use_worktree"
 
   if [[ -z "$task_id" ]]; then
     error "Task ID is required"
@@ -168,17 +199,30 @@ Examples:
     task_id="$resolved_id"
   fi
 
-  info "Checking out git branch for task $task_id"
-  if [[ "$DEBUG" == "true" ]]; then
-    git_checkout_task_branch "$task_id" --debug
+  if [[ "$use_worktree" == "true" ]]; then
+    info "Setting up devcontainer worktree for task $task_id"
+    if [[ "$DEBUG" == "true" ]]; then
+      git_worktree_for_task_branch "$task_id" --debug
+    else
+      git_worktree_for_task_branch "$task_id"
+    fi
   else
-    git_checkout_task_branch "$task_id"
+    info "Checking out git branch for task $task_id"
+    if [[ "$DEBUG" == "true" ]]; then
+      git_checkout_task_branch "$task_id" --debug
+    else
+      git_checkout_task_branch "$task_id"
+    fi
   fi
 
   local checkout_exit_code=$?
 
   if [[ $checkout_exit_code -ne 0 ]]; then
-    error "Failed to checkout branch for task $task_id"
+    if [[ "$use_worktree" == "true" ]]; then
+      error "Failed to set up worktree for task $task_id"
+    else
+      error "Failed to checkout branch for task $task_id"
+    fi
     return 1
   fi
 
@@ -190,7 +234,7 @@ Examples:
   if [[ $start_exit_code -ne 0 ]]; then
     error "Failed to mark task $task_id as IN PROGRESS"
     [[ "$DEBUG" == "true" ]] && debug "start-task output: $start_result"
-    info "Branch checkout was successful, but task status update failed."
+    info "Branch/worktree setup was successful, but task status update failed."
     info "You may want to manually update the task status in ClickUp."
     return 1
   fi
