@@ -11,3 +11,5 @@ export GITHUB_DEFAULT_PR_REVIEWER="Carepatron/platform"
 
 # Git
 export ISSUE_BRANCH_PREFIX="justin"
+
+export SLACK_PR_NOTIFY_DEFAULT_CHANNEL="D0A73CUMPQE" # Richard
