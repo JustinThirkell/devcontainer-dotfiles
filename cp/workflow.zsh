@@ -5,8 +5,24 @@ cp_new_task() {
   local start=true
   local DEBUG=false
 
+  local help_text='Usage: cp_new_task <title> [description] [--no-assignment] [--no-start] [--debug] [-h|--help]
+
+Creates a ClickUp task and (by default) immediately starts it via cp_start_task.
+
+Options:
+  --no-assignment   Skip assigning the task.
+  --no-start        Create the task without starting work on it.
+  --debug           Verbose output.
+  -h, --help        Show this help.
+
+Example: cp_new_task "Fix login bug" "Description of the fix"'
+
   while [[ $# -gt 0 ]]; do
     case "$1" in
+    -h|--help)
+      echo "$help_text"
+      return 0
+      ;;
     --no-assignment)
       no_assignment=true
       shift
@@ -26,7 +42,7 @@ cp_new_task() {
         description="$1"
       else
         error "Unknown option or too many arguments: $1"
-        echo "Usage: cp_new_task <title> [description] [--no-assignment] [--no-start] [--debug]"
+        echo "$help_text"
         return 1
       fi
       shift
@@ -36,8 +52,7 @@ cp_new_task() {
 
   if [[ -z "$title" ]]; then
     error "Title is required"
-    echo "Usage: cp_new_task <title> [description] [--no-assignment] [--no-start] [--debug]"
-    echo "Example: cp_new_task \"Fix login bug\" \"Description of the fix\""
+    echo "$help_text"
     return 1
   fi
 
@@ -93,8 +108,29 @@ cp_start_task() {
   local DEBUG=false
   local task_id=""
 
+  local help_text='Usage: cp_start_task <task-id> [--debug] [-h|--help]
+
+Starts work on a ClickUp task:
+  1. Checks out branch ${ISSUE_BRANCH_PREFIX}/CU-{taskid}-{slug}.
+  2. Marks the task IN PROGRESS in ClickUp.
+  3. Adds the task to the current sprint.
+
+Accepts a task ID or a ClickUp URL.
+
+Options:
+  --debug       Verbose output.
+  -h, --help    Show this help.
+
+Examples:
+  cp_start_task 86ew4x0vz
+  cp_start_task https://app.clickup.com/t/86ewdbtbh'
+
   while [[ $# -gt 0 ]]; do
     case "$1" in
+    -h|--help)
+      echo "$help_text"
+      return 0
+      ;;
     --debug)
       DEBUG=true
       shift
@@ -104,7 +140,7 @@ cp_start_task() {
         task_id="$1"
       else
         error "Unknown option or multiple task IDs provided: $1"
-        echo "Usage: cp_start_task <task-id> [--debug]"
+        echo "$help_text"
         return 1
       fi
       shift
@@ -117,9 +153,7 @@ cp_start_task() {
 
   if [[ -z "$task_id" ]]; then
     error "Task ID is required"
-    echo "Usage: cp_start_task <task-id> [--debug]"
-    echo "Example: cp_start_task 86ew4x0vz"
-    echo "Example: cp_start_task https://app.clickup.com/t/86ewdbtbh"
+    echo "$help_text"
     return 1
   fi
 
@@ -185,9 +219,28 @@ cp_pr_task() {
   local DEBUG=false
   local pr_body=""
   local ai_review=false
+  local no_slack=false
+  local slack_channel="$SLACK_PR_NOTIFY_DEFAULT_CHANNEL"
+
+  local help_text='Usage: cp_pr_task [--body DESCRIPTION] [--ai-review|-ar|--greptile] [--no-slack] [--channel CHANNEL_ID] [--debug] [-h|--help]
+
+Creates or updates a draft PR for the current branch and marks the ClickUp task IN REVIEW.
+By default, posts "PR please\n<url>" to $SLACK_PR_NOTIFY_DEFAULT_CHANNEL (if set).
+
+Options:
+  --body DESCRIPTION              Custom PR description (otherwise uses ClickUp task description).
+  --ai-review, -ar, --greptile    Add the greptile label so the Greptile bot reviews the PR.
+  --no-slack                      Skip the Slack notification.
+  --channel CHANNEL_ID            Override the Slack destination channel/DM for this invocation.
+  --debug                         Verbose output.
+  -h, --help                      Show this help.'
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
+    -h|--help)
+      echo "$help_text"
+      return 0
+      ;;
     --debug)
       DEBUG=true
       shift
@@ -196,7 +249,7 @@ cp_pr_task() {
       shift
       if [[ $# -lt 1 ]]; then
         echo "Missing value for --body"
-        echo "Usage: cp_pr_task [--debug] [--body DESCRIPTION] [--ai-review|-ar|--greptile]"
+        echo "$help_text"
         return 1
       fi
       pr_body="$1"
@@ -206,9 +259,23 @@ cp_pr_task() {
       ai_review=true
       shift
       ;;
+    --no-slack)
+      no_slack=true
+      shift
+      ;;
+    --channel)
+      shift
+      if [[ $# -lt 1 ]]; then
+        echo "Missing value for --channel"
+        echo "$help_text"
+        return 1
+      fi
+      slack_channel="$1"
+      shift
+      ;;
     *)
       echo "Unknown option: $1"
-      echo "Usage: cp_pr_task [--debug] [--body DESCRIPTION] [--ai-review|-ar|--greptile]"
+      echo "$help_text"
       return 1
       ;;
     esac
@@ -265,21 +332,65 @@ cp_pr_task() {
   [[ "$DEBUG" == "true" ]] && debug "pr-task result: $pr_task_result"
   info "Successfully marked task $task_id as IN REVIEW"
   info "PR created/updated and task $task_id is now in review!"
+
+  if [[ "$no_slack" == "true" ]]; then
+    [[ "$DEBUG" == "true" ]] && debug "Skipping Slack notification (--no-slack)"
+    return 0
+  fi
+
+  if [[ -z "$slack_channel" ]]; then
+    [[ "$DEBUG" == "true" ]] && debug "No Slack channel configured; skipping notification."
+    return 0
+  fi
+
+  local pr_url
+  pr_url=$(gh pr view --json url -q .url 2>/dev/null)
+  if [[ -z "$pr_url" ]]; then
+    error "Could not resolve PR URL; skipping Slack notification."
+    return 0
+  fi
+
+  local slack_text=$'PR please\n'"$pr_url"
+  info "Notifying Slack channel $slack_channel"
+  local slack_args=("$slack_channel" "$slack_text")
+  [[ "$DEBUG" == "true" ]] && slack_args+=(--debug)
+  if ! slack_post_message "${slack_args[@]}"; then
+    error "Slack notification failed (PR is still created/updated)."
+    return 0
+  fi
+  info "Slack notification sent."
 }
 
 alias pr=cp_pr_task
 
 cp_cleanup_branches() {
   local DEBUG=false
+
+  local help_text='Usage: cp_cleanup_branches [--debug] [-h|--help]
+
+Cleans up merged branches:
+  1. Finds local branches whose remote tracking branch is gone.
+  2. Marks the corresponding ClickUp tasks as DONE.
+  3. Removes worktrees for gone branches.
+  4. Deletes the local branches (git bclean).
+
+Options:
+  --debug       Verbose output.
+  -h, --help    Show this help.'
+
   while [[ $# -gt 0 ]]; do
     case "$1" in
+    -h|--help)
+      echo "$help_text"
+      return 0
+      ;;
     --debug)
       DEBUG=true
       shift
       ;;
     *)
       error "Unknown option: $1"
-      echo "Usage: cp_cleanup_branches [--debug]"
+      echo "$help_text"
       return 1
       ;;
     esac

@@ -28,7 +28,7 @@ Starts work on a ClickUp task:
 
 Accepts a task ID or a ClickUp URL (e.g. `https://app.clickup.com/t/86ewdbtbh`).
 
-### `pr` / `cp_pr_task [--body DESCRIPTION] [--ai-review | -ar | --greptile]`
+### `pr` / `cp_pr_task [--body DESCRIPTION] [--ai-review | -ar | --greptile] [--no-slack] [--channel CHANNEL_ID]`
 
 Creates or updates a PR for the current branch:
 
@@ -38,9 +38,12 @@ Creates or updates a PR for the current branch:
 4. Generates PR title as `[CU-{taskid}] {Capitalized title}`.
 5. Creates a **draft** PR with reviewer `Carepatron/platform`, or updates an existing PR.
 6. Marks the ClickUp task as IN REVIEW.
+7. By default, posts a "PR please\n<url>" Slack message to `$SLACK_PR_NOTIFY_DEFAULT_CHANNEL` (set in `~/.zshrc.local`).  Requires `SLACK_APP_PR_NOTIFY_TOKEN` (see `cp/slack.zsh`).  If neither the env var nor `--channel` is set, the Slack step is silently skipped.
 
 Use `--body` to provide a custom PR description; otherwise uses the ClickUp task description.
 Use `--ai-review` (aliases: `-ar`, `--greptile`) to add the `greptile` label so the Greptile AI reviewer bot reviews this PR.
+Use `--no-slack` to skip the Slack notification.
+Use `--channel <id>` to override the destination channel/DM for a single invocation (otherwise uses `$SLACK_PR_NOTIFY_DEFAULT_CHANNEL`).
 
 #### When to use `--ai-review` / `-ar` / `--greptile`
 
