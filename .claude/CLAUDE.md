@@ -124,6 +124,18 @@ Every `git commit` must be signed.  No exceptions.
 
 Reason: signed commits are the audit trail.  An unsigned commit on a feature branch survives review noise and ends up referenced from PR comments, rollback investigations, and bisects long after merge — even when the squash-merge commit on master is signed.  Mixed-signature branches signal "agent did something weird here" and erode trust in *every* commit on the branch.
 
+## Commits must always run pre-commit hooks (lefthook)
+
+Every `git commit` must run the repo's pre-commit hooks.  No exceptions.
+
+- **Never** pass `--no-verify` / `-n` to `git commit`, `git merge`, `git rebase`, `git cherry-pick`, or `git revert` — even "defensively" or "just for this one fixup".
+- **Never** set `LEFTHOOK=0`, `LEFTHOOK_QUIET=…`, `LEFTHOOK_SKIP_OUTPUT=…`, or otherwise tweak lefthook env vars to bypass jobs.  Don't use lefthook's per-job skip flags (`--exclude`, `--no-tty`, custom `LEFTHOOK_EXCLUDE`) either.
+- If a pre-commit hook fails, **surface the full hook output and stop**.  Read what failed, fix the underlying issue, re-stage, and commit again.  Do not retry the same commit with hooks disabled.  Do not "work around" by amending after the fact.
+- If a hook fails for reasons unrelated to your change (e.g. a broken `openapi-typegen` step, an esbuild platform mismatch, a stale codegen step), **stop and tell the operator**.  Bypassing is never the right fix — the next commit will hit the same wall, and meanwhile real check failures (formatting, non-ASCII, lint errors) slip through silently.
+- This applies to every commit the agent makes: feature commits, fixup commits, amends, rebase pickups, cherry-picks.  Even on private branches.  Even on throwaway worktrees.  Even when the next step is going to squash-merge.
+
+Reason: the repo's lefthook config (`lefthook.yml`) is the *only* place CI-equivalent format + lint + non-ASCII + codegen checks run before code leaves the devcontainer.  Skipping it once means the broken commit lands on the PR branch, CI fails, the operator has to context-switch to chase a failure that should have been caught locally, and the PR's review thread gets cluttered with fixup commits for trivial format diffs.  Previous incidents (e.g. PR #18816 — Biome format + non-ASCII both caught by local hooks if they had run) trace to exactly this bypass.  Worse, once `--no-verify` becomes the easy escape for "this hook is being annoying", it becomes muscle memory and every check silently degrades — the agent stops being a backstop and starts being a liability.
+
 ## PR creation — always use `pr`, never the `/pr-create` skill
 
 For any request that means "make a PR" — including "pr this", "commit and PR", "create a pull request", "open a PR", "make a draft PR", etc. — run the `pr` zsh alias (`cp_pr_task`) in the shell, not the `/pr-create` skill.
