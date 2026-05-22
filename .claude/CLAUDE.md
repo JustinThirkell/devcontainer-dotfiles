@@ -175,8 +175,8 @@ The function fails fast on conflict (existing worktree path, existing local bran
 
 After the worktree exists:
 
-  1. **`cd ~/worktrees/CU-{taskid}-{slug}/`** and operate inside it using absolute paths.  TDD red/green per project standards.  ExecPlan reads and updates happen inside the worktree (the plan file is in-repo, so the worktree has its own copy).
-  2. **Commit.**  Logical units; `[CU-{taskid}]` prefix in the message body, not the subject.  Signed, hooks must run (see signing + lefthook rules above).
+  1. **`cd ~/worktrees/CU-{taskid}-{slug}/`** and operate inside it using absolute paths.  TDD red/green and other conventions per public-api/design/development.md guidelines.  ExecPlan reads and updates happen inside the worktree (the plan file is in-repo, so the worktree has its own copy).
+  2. **Commit.**  Logical units, signed, hooks must run (see signing + lefthook rules above).
   3. **Open the PR.**  From inside the worktree: run `pr` (no `--ai-review` unless the operator explicitly asked for it in the current request — see the "When to use `--ai-review`" rule above).  Per the "always use `pr`, never the `/pr-create` skill" section above.  `pr` works unchanged in a worktree — `git push` and `gh pr` are pwd-aware, and `clickup pr-task` is git-free.
   4. **Update the ExecPlan** if one applies — tick milestone checkboxes, add Surprises/Decisions.  Follow-up commit + `pr` updates the existing PR.
   5. **Leave the worktree in place** until the PR merges.  Post-merge, run `cleanup` (alias for `cp_cleanup_branches`) — it removes worktrees whose upstream is gone, marks the ClickUp task DONE, and deletes the local branch.  Don't manually `git worktree remove` or `git branch -D` without explicit user approval.
