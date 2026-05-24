@@ -264,19 +264,38 @@ _cp_worktree_link_node_modules() {
     return 1
   fi
 
-  local src target_rel target_abs
+  local src target_rel target_abs current_target
+  local created=0 already_ok=0 failed=0
+
   for src in "${CP_WORKTREE_NODE_MODULES_PATHS[@]}"; do
     # target_rel is the portion of src after "/workspace/", e.g. "ui/node_modules".
     target_rel="${src#/workspace/}"
     target_abs="$wt_dir/$target_rel"
 
     if [[ ! -d "$src" ]]; then
-      [[ "$DEBUG" == "true" ]] && debug "Source $src does not exist; skipping symlink"
+      error "Source $src does not exist — refusing to symlink (worktree will be unusable)"
+      failed=$((failed + 1))
       continue
     fi
 
-    if [[ -e "$target_abs" || -L "$target_abs" ]]; then
-      [[ "$DEBUG" == "true" ]] && debug "Target $target_abs already exists; skipping symlink"
+    # Idempotent: an already-correct symlink is fine, accept silently.
+    if [[ -L "$target_abs" ]]; then
+      current_target=$(readlink "$target_abs")
+      if [[ "$current_target" == "$src" ]]; then
+        already_ok=$((already_ok + 1))
+        [[ "$DEBUG" == "true" ]] && debug "Already linked: $target_abs -> $src"
+        continue
+      fi
+      error "$target_abs is a symlink to $current_target, expected $src"
+      failed=$((failed + 1))
+      continue
+    fi
+
+    # Anything else at the target (regular file, real directory) is unexpected.
+    # Refuse to overwrite — operator can investigate / clean up manually.
+    if [[ -e "$target_abs" ]]; then
+      error "$target_abs already exists and is not a symlink — refusing to overwrite"
+      failed=$((failed + 1))
       continue
     fi
 
@@ -285,12 +304,20 @@ _cp_worktree_link_node_modules() {
     mkdir -p "$(dirname "$target_abs")"
 
     if ln -s "$src" "$target_abs"; then
+      created=$((created + 1))
       [[ "$DEBUG" == "true" ]] && debug "Linked $target_abs -> $src"
     else
-      error "Failed to link $target_abs -> $src"
-      return 1
+      error "ln -s $src $target_abs failed"
+      failed=$((failed + 1))
     fi
   done
+
+  info "Symlinks: $created created, $already_ok already valid, $failed failed"
+
+  if [[ $failed -gt 0 ]]; then
+    return 1
+  fi
+  return 0
 }
 
 # Create a git worktree for a ClickUp task, off origin/master, with the
@@ -412,6 +439,20 @@ git_worktree_for_task_branch() {
     error "Failed to wire up node_modules symlinks (worktree left in place at $wt_dir)"
     return 1
   fi
+
+  # Post-condition: every expected symlink must be present and point at
+  # /workspace.  Catches the rare case where something external (IDE indexer,
+  # concurrent agent, cleanup hook) removed a symlink we just created.
+  local src target_rel target_abs
+  for src in "${CP_WORKTREE_NODE_MODULES_PATHS[@]}"; do
+    target_rel="${src#/workspace/}"
+    target_abs="$wt_dir/$target_rel"
+    if [[ ! -L "$target_abs" ]] || [[ "$(readlink "$target_abs")" != "$src" ]]; then
+      error "Post-condition: expected symlink missing or wrong at $target_abs (-> $src)"
+      error "Worktree left in place at $wt_dir — investigate before using"
+      return 1
+    fi
+  done
 
   info "✅ Worktree ready: $wt_dir"
   info "Next: cd $wt_dir"
