@@ -238,88 +238,6 @@ CP_WORKTREE_NODE_MODULES_PATHS=(
   "/workspace/infra/stacks/public-api/node_modules"
 )
 
-# Wire up node_modules symlinks inside a fresh worktree, pointing at the
-# matching paths under /workspace.  Devcontainer-only — the assumption is
-# that /workspace's node_modules (whether a Docker named volume for the root
-# or a bind-mounted dir from the macOS host for ui/ and infra/stacks/public-api/)
-# is the source of truth, and worktrees just share it via symlink.
-#
-# Without these, yarn commands from inside the worktree fail with "Couldn't
-# find the node_modules state file"; pre-commit eslint (lefthook scoped to
-# ui/) fails the same way; npx jest from infra/stacks/public-api/ cannot
-# find jest.
-#
-# Concurrency note: all worktrees + /workspace share ONE physical
-# node_modules tree, so concurrent `yarn install`s from different worktrees
-# would corrupt that tree.  Do installs in /workspace, not in worktrees.
-#
-# Usage: _cp_worktree_link_node_modules <worktree-dir> [--debug]
-_cp_worktree_link_node_modules() {
-  local wt_dir="$1"
-  local DEBUG=false
-  [[ "$2" == "--debug" ]] && DEBUG=true
-
-  if [[ -z "$wt_dir" || ! -d "$wt_dir" ]]; then
-    error "_cp_worktree_link_node_modules: worktree dir is required and must exist"
-    return 1
-  fi
-
-  local src target_rel target_abs current_target
-  local created=0 already_ok=0 failed=0
-
-  for src in "${CP_WORKTREE_NODE_MODULES_PATHS[@]}"; do
-    # target_rel is the portion of src after "/workspace/", e.g. "ui/node_modules".
-    target_rel="${src#/workspace/}"
-    target_abs="$wt_dir/$target_rel"
-
-    if [[ ! -d "$src" ]]; then
-      error "Source $src does not exist — refusing to symlink (worktree will be unusable)"
-      failed=$((failed + 1))
-      continue
-    fi
-
-    # Idempotent: an already-correct symlink is fine, accept silently.
-    if [[ -L "$target_abs" ]]; then
-      current_target=$(readlink "$target_abs")
-      if [[ "$current_target" == "$src" ]]; then
-        already_ok=$((already_ok + 1))
-        [[ "$DEBUG" == "true" ]] && debug "Already linked: $target_abs -> $src"
-        continue
-      fi
-      error "$target_abs is a symlink to $current_target, expected $src"
-      failed=$((failed + 1))
-      continue
-    fi
-
-    # Anything else at the target (regular file, real directory) is unexpected.
-    # Refuse to overwrite — operator can investigate / clean up manually.
-    if [[ -e "$target_abs" ]]; then
-      error "$target_abs already exists and is not a symlink — refusing to overwrite"
-      failed=$((failed + 1))
-      continue
-    fi
-
-    # Ensure parent dir exists (worktree may not have it if the path is deep
-    # and the package.json under that path is the only thing checked out).
-    mkdir -p "$(dirname "$target_abs")"
-
-    if ln -s "$src" "$target_abs"; then
-      created=$((created + 1))
-      [[ "$DEBUG" == "true" ]] && debug "Linked $target_abs -> $src"
-    else
-      error "ln -s $src $target_abs failed"
-      failed=$((failed + 1))
-    fi
-  done
-
-  info "Symlinks: $created created, $already_ok already valid, $failed failed"
-
-  if [[ $failed -gt 0 ]]; then
-    return 1
-  fi
-  return 0
-}
-
 # Create a git worktree for a ClickUp task, off origin/master, with the
 # standard devcontainer node_modules symlinks wired up.
 #
@@ -428,31 +346,73 @@ git_worktree_for_task_branch() {
     return 1
   fi
 
+  # Wire up node_modules symlinks inside the worktree, pointing at the matching
+  # paths under /workspace.  Devcontainer-only — /workspace's node_modules (Docker
+  # named volume for the root; bind-mounted from the macOS host for ui/ and
+  # infra/stacks/public-api/) is the source of truth and worktrees share it via
+  # symlink.  Without these, yarn / eslint / jest from inside the worktree fail
+  # with "Couldn't find the node_modules state file".  See CLAUDE.md for the full
+  # background and the concurrency rule (never run `yarn install` from a worktree).
   info "Wiring up node_modules symlinks"
-  if [[ "$DEBUG" == "true" ]]; then
-    _cp_worktree_link_node_modules "$wt_dir" --debug
-  else
-    _cp_worktree_link_node_modules "$wt_dir"
-  fi
-  local link_exit=$?
-  if [[ $link_exit -ne 0 ]]; then
-    error "Failed to wire up node_modules symlinks (worktree left in place at $wt_dir)"
-    return 1
-  fi
 
-  # Post-condition: every expected symlink must be present and point at
-  # /workspace.  Catches the rare case where something external (IDE indexer,
-  # concurrent agent, cleanup hook) removed a symlink we just created.
-  local src target_rel target_abs
+  local src target_rel target_abs current_target
+  local created=0 already_ok=0 failed=0
+
   for src in "${CP_WORKTREE_NODE_MODULES_PATHS[@]}"; do
     target_rel="${src#/workspace/}"
     target_abs="$wt_dir/$target_rel"
-    if [[ ! -L "$target_abs" ]] || [[ "$(readlink "$target_abs")" != "$src" ]]; then
-      error "Post-condition: expected symlink missing or wrong at $target_abs (-> $src)"
-      error "Worktree left in place at $wt_dir — investigate before using"
-      return 1
+
+    if [[ ! -d "$src" ]]; then
+      error "Source $src does not exist — refusing to symlink (worktree will be unusable)"
+      failed=$((failed + 1))
+      continue
+    fi
+
+    # Idempotent: an already-correct symlink is fine, accept silently.
+    if [[ -L "$target_abs" ]]; then
+      current_target=$(readlink "$target_abs")
+      if [[ "$current_target" == "$src" ]]; then
+        already_ok=$((already_ok + 1))
+        [[ "$DEBUG" == "true" ]] && debug "Already linked: $target_abs -> $src"
+        continue
+      fi
+      error "$target_abs is a symlink to $current_target, expected $src"
+      failed=$((failed + 1))
+      continue
+    fi
+
+    # Anything else at the target (regular file, real directory) is unexpected.
+    if [[ -e "$target_abs" ]]; then
+      error "$target_abs already exists and is not a symlink — refusing to overwrite"
+      failed=$((failed + 1))
+      continue
+    fi
+
+    mkdir -p "$(dirname "$target_abs")"
+
+    if ln -s "$src" "$target_abs"; then
+      created=$((created + 1))
+      [[ "$DEBUG" == "true" ]] && debug "Linked $target_abs -> $src"
+    else
+      error "ln -s $src $target_abs failed"
+      failed=$((failed + 1))
     fi
   done
+
+  info "Symlinks: $created created, $already_ok already valid, $failed failed"
+
+  if [[ $failed -gt 0 ]]; then
+    error "Failed to wire up node_modules symlinks (worktree left in place at $wt_dir)"
+    error "To finish setup manually, run the missing symlinks:"
+    for src in "${CP_WORKTREE_NODE_MODULES_PATHS[@]}"; do
+      target_rel="${src#/workspace/}"
+      target_abs="$wt_dir/$target_rel"
+      if [[ ! -L "$target_abs" ]] || [[ "$(readlink "$target_abs")" != "$src" ]]; then
+        error "  mkdir -p \"$(dirname "$target_abs")\" && ln -s \"$src\" \"$target_abs\""
+      fi
+    done
+    return 1
+  fi
 
   info "✅ Worktree ready: $wt_dir"
   info "Next: cd $wt_dir"
