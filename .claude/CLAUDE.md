@@ -26,7 +26,7 @@ Behind the scenes (in `~/dotfiles/cp/{git,workflow}.zsh`), the `--worktree` flag
 
 1. `git -C /workspace fetch origin` (so the worktree is rooted at fresh master, not whatever HEAD `/workspace` happens to be on).
 2. `git -C /workspace worktree add ~/worktrees/CU-{taskid}-{slug} -b ${ISSUE_BRANCH_PREFIX}/CU-{taskid}-{slug} origin/master`.
-3. Symlinks each path in `CP_WORKTREE_NODE_MODULES_PATHS` (defined in `cp/git.zsh`) into the worktree.  Currently three: `/workspace/node_modules`, `/workspace/ui/node_modules`, `/workspace/infra/stacks/public-api/node_modules`.
+3. Symlinks each of three hard-coded `node_modules` paths into the worktree (defined inside `git_worktree_for_task_branch` so the list survives Claude Code's shell-snapshot restore — `CP_WORKTREE_NODE_MODULES_PATHS` overrides if set).  Currently three: `/workspace/node_modules`, `/workspace/ui/node_modules`, `/workspace/infra/stacks/public-api/node_modules`.
 
 The function fails fast on conflict (existing worktree path, existing local branch) and prints a `cd ~/worktrees/<slug>` hint at the end.
 
@@ -49,7 +49,7 @@ In both cases, the symlinks (wired up automatically by `--worktree`) fix it by p
 
 The "never run `yarn install`/`npm install` from inside a worktree" rule is about **concurrency, not isolation**: all worktrees and `/workspace` share **one** physical `node_modules` tree (via the symlinks and the bind mount), so two installs racing — one in `/workspace` and one in a worktree, or two worktrees at once — would corrupt that shared tree.  Do installs in `/workspace`, never concurrently with another session.  The one narrow exception: when the install needs to pick up a `.yarnrc.yml`/`package.json` change that only exists in the worktree's branch (e.g. testing a `supportedArchitectures` addition before merge).  In that case, confirm no other session is active and run it from the worktree once.
 
-If a future master adds another yarn/npm project root, the same "state file" error will surface from the new path.  Fix it by adding the path to `CP_WORKTREE_NODE_MODULES_PATHS` in `~/dotfiles/cp/git.zsh`.  To discover candidates: `find /workspace -maxdepth 4 -type d -name node_modules -not -path '*/node_modules/*'`.
+If a future master adds another yarn/npm project root, the same "state file" error will surface from the new path.  Fix it by adding the path to the `worktree_paths` default list inside `git_worktree_for_task_branch` in `~/dotfiles/cp/git.zsh` (or, for a one-off, export `CP_WORKTREE_NODE_MODULES_PATHS=(…)` before invoking the workflow).  To discover candidates: `find /workspace -maxdepth 4 -type d -name node_modules -not -path '*/node_modules/*'`.
 
 ### Constraints
 

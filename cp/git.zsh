@@ -226,18 +226,6 @@ git_checkout_task_branch() {
   fi
 }
 
-# Standard node_modules paths to symlink into a worktree.  These are the
-# yarn/npm project roots in the Carepatron-App devcontainer.
-#
-# Add new entries when a new yarn/npm project root appears on master.
-# Discover candidates with:
-#   find /workspace -maxdepth 4 -type d -name node_modules -not -path '*/node_modules/*'
-CP_WORKTREE_NODE_MODULES_PATHS=(
-  "/workspace/node_modules"
-  "/workspace/ui/node_modules"
-  "/workspace/infra/stacks/public-api/node_modules"
-)
-
 # Create a git worktree for a ClickUp task, off origin/master, with the
 # standard devcontainer node_modules symlinks wired up.
 #
@@ -258,6 +246,28 @@ CP_WORKTREE_NODE_MODULES_PATHS=(
 git_worktree_for_task_branch() {
   local DEBUG=false
   local task_id=""
+
+  # Standard node_modules paths to symlink into a worktree.  These are the
+  # yarn/npm project roots in the Carepatron-App devcontainer.
+  #
+  # Declared inside the function (not at module level) so the list survives
+  # Claude Code's shell-snapshot restore — the snapshot replays function
+  # definitions but not top-level scalar/array assignments.  An exported
+  # CP_WORKTREE_NODE_MODULES_PATHS overrides the defaults if set.
+  #
+  # Add new entries when a new yarn/npm project root appears on master.
+  # Discover candidates with:
+  #   find /workspace -maxdepth 4 -type d -name node_modules -not -path '*/node_modules/*'
+  local -a worktree_paths
+  if (( ${#CP_WORKTREE_NODE_MODULES_PATHS[@]} )); then
+    worktree_paths=("${CP_WORKTREE_NODE_MODULES_PATHS[@]}")
+  else
+    worktree_paths=(
+      "/workspace/node_modules"
+      "/workspace/ui/node_modules"
+      "/workspace/infra/stacks/public-api/node_modules"
+    )
+  fi
 
   while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -346,6 +356,14 @@ git_worktree_for_task_branch() {
     return 1
   fi
 
+  # `worktree add -b <new> origin/master` configures the new branch to track
+  # origin/master.  That's wrong for our flow — the new branch is pushed under
+  # its own name, and a mismatching upstream makes `git push` (under
+  # push.default=simple) refuse with "upstream branch does not match the name
+  # of your current branch".  Clear upstream here; `pr` sets it correctly on
+  # the first push via --set-upstream.
+  git -C "$wt_dir" branch --unset-upstream 2>/dev/null || true
+
   # Wire up node_modules symlinks inside the worktree, pointing at the matching
   # paths under /workspace.  Devcontainer-only — /workspace's node_modules (Docker
   # named volume for the root; bind-mounted from the macOS host for ui/ and
@@ -358,7 +376,11 @@ git_worktree_for_task_branch() {
   local src target_rel target_abs current_target
   local created=0 already_ok=0 failed=0
 
-  for src in "${CP_WORKTREE_NODE_MODULES_PATHS[@]}"; do
+  for src in "${worktree_paths[@]}"; do
+    # Defensive: zsh expands an unset array as one empty element under "$arr[@]".
+    # Shouldn't trigger now that the array is locally bound above, but belt-and-braces.
+    [[ -z "$src" ]] && continue
+
     target_rel="${src#/workspace/}"
     target_abs="$wt_dir/$target_rel"
 
@@ -404,7 +426,8 @@ git_worktree_for_task_branch() {
   if [[ $failed -gt 0 ]]; then
     error "Failed to wire up node_modules symlinks (worktree left in place at $wt_dir)"
     error "To finish setup manually, run the missing symlinks:"
-    for src in "${CP_WORKTREE_NODE_MODULES_PATHS[@]}"; do
+    for src in "${worktree_paths[@]}"; do
+      [[ -z "$src" ]] && continue
       target_rel="${src#/workspace/}"
       target_abs="$wt_dir/$target_rel"
       if [[ ! -L "$target_abs" ]] || [[ "$(readlink "$target_abs")" != "$src" ]]; then
