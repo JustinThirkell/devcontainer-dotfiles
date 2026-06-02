@@ -18,3 +18,7 @@ export TZ='Pacific/Auckland'
 export LESS_TERMCAP_md="${yellow}"
 export MANPAGER='less -X'
 export GPG_TTY=$(tty)
+
+# Disable AWS CLI v2's default pager (less on the alt screen) so output stays
+# in scrollback and is pipeable/redirectable.
+export AWS_PAGER=''
