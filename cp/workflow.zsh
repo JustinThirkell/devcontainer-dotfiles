@@ -269,7 +269,8 @@ cp_pr_task() {
   local help_text='Usage: cp_pr_task [--body DESCRIPTION] [--ai-review|-ar|--greptile] [--no-slack] [--channel CHANNEL_ID] [--debug] [-h|--help]
 
 Creates or updates a draft PR for the current branch and marks the ClickUp task IN REVIEW.
-By default, posts "PR please\n<url>" to $SLACK_PR_NOTIFY_DEFAULT_CHANNEL (if set).
+On initial PR creation, posts "PR please\n<url>" to $SLACK_PR_NOTIFY_DEFAULT_CHANNEL (if set).
+Subsequent invocations on the same PR (commit updates) are silent — reviewers were already pinged when the PR was opened.
 
 Options:
   --body DESCRIPTION              Custom PR description (otherwise uses ClickUp task description).
@@ -346,6 +347,17 @@ Options:
   [[ "$DEBUG" == "true" ]] && debug "Extracted task ID from branch: $task_id"
 
   info "Creating/updating PR for task $task_id"
+
+  # Detect whether a PR already exists for this branch BEFORE git_pr_task_branch
+  # runs the create-or-update.  Used at the end to skip the Slack notification
+  # on update-only invocations — reviewers were already pinged when the PR
+  # was opened; re-posting "PR please" on every commit is noisy.
+  local pr_existed_before=false
+  if [[ -n "$(gh pr list --head "$current_branch" --json number -q '.[0].number' 2>/dev/null)" ]]; then
+    pr_existed_before=true
+  fi
+  [[ "$DEBUG" == "true" ]] && debug "pr_existed_before=$pr_existed_before"
+
   local pr_args=()
   [[ -n "$pr_body" ]] && pr_args+=(--body "$pr_body")
   [[ "$DEBUG" == "true" ]] && pr_args+=(--debug)
@@ -379,6 +391,11 @@ Options:
 
   if [[ "$no_slack" == "true" ]]; then
     [[ "$DEBUG" == "true" ]] && debug "Skipping Slack notification (--no-slack)"
+    return 0
+  fi
+
+  if [[ "$pr_existed_before" == "true" ]]; then
+    [[ "$DEBUG" == "true" ]] && debug "Skipping Slack notification (PR already existed; updates are silent)"
     return 0
   fi
 
