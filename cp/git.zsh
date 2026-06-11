@@ -738,3 +738,15 @@ git_remove_gone_worktrees() {
 
   return $failed
 }
+
+# Push current branch over HTTPS via the gh PAT, for commits touching
+# .github/workflows/** (the SSH deploy key can't). Normal push/pull stay on SSH.
+git_push_via_pat() {
+  local repo branch
+  repo=$(gh repo view --json nameWithOwner -q .nameWithOwner) || return 1
+  branch=$(git branch --show-current) || return 1
+  git -c "url.https://github.com/${repo%%/*}/.insteadOf=https://github.com/${repo%%/*}/" \
+      -c 'credential.helper=!gh auth git-credential' \
+      push "https://github.com/${repo}.git" "HEAD:refs/heads/${branch}" "$@"
+}
+
