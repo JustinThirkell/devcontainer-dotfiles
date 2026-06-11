@@ -545,4 +545,4 @@ Options:
 
 alias cleanup=cp_cleanup_branches
 
-alias push_workflows=git_push_via_pat
+alias gp-workflows=git_push_via_pat
