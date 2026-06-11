@@ -424,6 +424,50 @@ Options:
 
 alias pr=cp_pr_task
 
+# Mark the current branch's (draft) PR ready for review and ping the reviewer on Slack.
+#
+# Companion to cp_pr_task: the pr-review-justin skill opens the PR with `pr --no-slack`
+# (silent draft) so a fresh /pr-review + CI loop can run first, then calls this to flip the
+# PR to ready and send the "PR please" ping.  cp_pr_task deliberately suppresses the ping on
+# an existing PR, so the notification lives here instead.
+#
+# Usage: cp_pr_ship [--debug]
+cp_pr_ship() {
+  local DEBUG=false
+  [[ "$1" == "--debug" ]] && DEBUG=true
+
+  # Flip the draft PR to ready for review (no-op if it is already non-draft).
+  if ! gh pr ready 2>/dev/null; then
+    [[ "$DEBUG" == "true" ]] && debug "gh pr ready: PR already ready, or no PR found for this branch"
+  fi
+
+  local pr_url
+  pr_url=$(gh pr view --json url -q .url 2>/dev/null)
+  if [[ -z "$pr_url" ]]; then
+    error "Could not resolve PR URL; cannot notify Slack."
+    return 1
+  fi
+
+  local slack_channel="$SLACK_PR_NOTIFY_DEFAULT_CHANNEL"
+  if [[ -z "$slack_channel" ]]; then
+    [[ "$DEBUG" == "true" ]] && debug "No Slack channel configured; skipping notification."
+    info "PR marked ready (no Slack channel configured): $pr_url"
+    return 0
+  fi
+
+  local slack_text=$'PR please\n'"$pr_url"
+  info "Notifying Slack channel $slack_channel"
+  local slack_args=("$slack_channel" "$slack_text")
+  [[ "$DEBUG" == "true" ]] && slack_args+=(--debug)
+  if ! slack_post_message "${slack_args[@]}"; then
+    error "Slack notification failed (PR is marked ready)."
+    return 1
+  fi
+  info "PR ready and reviewer pinged: $pr_url"
+}
+
+alias pr_ship=cp_pr_ship
+
 cp_cleanup_branches() {
   local DEBUG=false
 
