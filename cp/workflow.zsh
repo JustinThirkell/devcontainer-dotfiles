@@ -431,10 +431,30 @@ alias pr=cp_pr_task
 # PR to ready and send the "PR please" ping.  cp_pr_task deliberately suppresses the ping on
 # an existing PR, so the notification lives here instead.
 #
-# Usage: cp_pr_ship [--debug]
+# Usage: cp_pr_ship [--debug] [--note <text>]
+#
+# --note appends extra text (Slack mrkdwn) to the "PR please" ping, after a blank line.  The
+# pr-review-justin skill uses it to inline its AI pre-review summary, so the reviewer sees the
+# screen result in the same DM as the nudge instead of only on the PR.
 cp_pr_ship() {
   local DEBUG=false
-  [[ "$1" == "--debug" ]] && DEBUG=true
+  local note=""
+  while [[ $# -gt 0 ]]; do
+    case "$1" in
+    --debug)
+      DEBUG=true
+      shift
+      ;;
+    --note)
+      note="$2"
+      shift 2
+      ;;
+    *)
+      error "cp_pr_ship: unexpected argument: $1"
+      return 1
+      ;;
+    esac
+  done
 
   # Flip the draft PR to ready for review (no-op if it is already non-draft).
   if ! gh pr ready 2>/dev/null; then
@@ -456,6 +476,7 @@ cp_pr_ship() {
   fi
 
   local slack_text=$'PR please\n'"$pr_url"
+  [[ -n "$note" ]] && slack_text+=$'\n\n'"$note"
   info "Notifying Slack channel $slack_channel"
   local slack_args=("$slack_channel" "$slack_text")
   [[ "$DEBUG" == "true" ]] && slack_args+=(--debug)
