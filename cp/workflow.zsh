@@ -426,17 +426,20 @@ alias pr=cp_pr_task
 
 # Mark the current branch's (draft) PR ready for review and ping the reviewer on Slack.
 #
-# Companion to cp_pr_task: the pr-review-justin skill opens the PR with `pr --no-slack`
-# (silent draft) so a fresh /pr-review + CI loop can run first, then calls this to flip the
-# PR to ready and send the "PR please" ping.  cp_pr_task deliberately suppresses the ping on
-# an existing PR, so the notification lives here instead.
+# Companion to cp_pr_task: the public-api-pr skill opens the PR with `pr --no-slack`
+# (silent draft) so a fresh public-api-code-review + CI loop can run first, then calls this to
+# flip the PR to ready and send the "PR please" ping.  cp_pr_task deliberately suppresses the
+# ping on an existing PR, so the notification lives here instead.
 #
-# Usage: cp_pr_ship [--debug] [--note <text>]
+# Usage: cp_pr_mark_ready_for_review [--debug] [--note <text>]
 #
 # --note appends extra text (Slack mrkdwn) to the "PR please" ping, after a blank line.  The
-# pr-review-justin skill uses it to inline its AI pre-review summary, so the reviewer sees the
+# public-api-pr skill uses it to inline its AI pre-review summary, so the reviewer sees the
 # screen result in the same DM as the nudge instead of only on the PR.
-cp_pr_ship() {
+#
+# Renamed from cp_pr_ship (whose name implied merge/deploy).  No alias - the controller skill
+# invokes the function directly, and a long explicit name is fine for that single caller.
+cp_pr_mark_ready_for_review() {
   local DEBUG=false
   local note=""
   while [[ $# -gt 0 ]]; do
@@ -450,7 +453,7 @@ cp_pr_ship() {
       shift 2
       ;;
     *)
-      error "cp_pr_ship: unexpected argument: $1"
+      error "cp_pr_mark_ready_for_review: unexpected argument: $1"
       return 1
       ;;
     esac
@@ -486,8 +489,6 @@ cp_pr_ship() {
   fi
   info "PR ready and reviewer pinged: $pr_url"
 }
-
-alias pr_ship=cp_pr_ship
 
 cp_cleanup_branches() {
   local DEBUG=false

@@ -26,7 +26,7 @@ Behind the scenes (in `~/dotfiles/cp/{git,workflow}.zsh`), the `--worktree` flag
 
 1. `git -C /workspace fetch origin` (so the worktree is rooted at fresh master, not whatever HEAD `/workspace` happens to be on).
 2. `git -C /workspace worktree add ~/worktrees/CU-{taskid}-{slug} -b ${ISSUE_BRANCH_PREFIX}/CU-{taskid}-{slug} origin/master`.
-3. Symlinks each of three hard-coded `node_modules` paths into the worktree (defined inside `git_worktree_for_task_branch` so the list survives Claude Code's shell-snapshot restore — `CP_WORKTREE_NODE_MODULES_PATHS` overrides if set).  Currently three: `/workspace/node_modules`, `/workspace/ui/node_modules`, `/workspace/infra/stacks/public-api/node_modules`.
+3. Symlinks each of four hard-coded `node_modules` paths into the worktree (defined inside `git_worktree_for_task_branch` so the list survives Claude Code's shell-snapshot restore — `CP_WORKTREE_NODE_MODULES_PATHS` overrides if set).  Currently four: `/workspace/node_modules`, `/workspace/ui/node_modules`, `/workspace/infra/stacks/public-api/node_modules`, `/workspace/public-api/console/node_modules` (the console SPA's bun project, so vite / vitest / playwright work in a worktree).
 
 The function fails fast on conflict (existing worktree path, existing local branch) and prints a `cd ~/worktrees/<slug>` hint at the end.
 
@@ -34,7 +34,7 @@ After the worktree exists:
 
   1. **`cd ~/worktrees/CU-{taskid}-{slug}/`** and operate inside it using absolute paths.  TDD red/green and other conventions per public-api/design/development.md guidelines.  ExecPlan reads and updates happen inside the worktree (the plan file is in-repo, so the worktree has its own copy).
   2. **Commit.**  Logical units, signed, hooks must run (see signing + lefthook rules above).
-  3. **Open the PR.**  From inside the worktree: run `pr` (no `--ai-review` unless the operator explicitly asked for it in the current request — see the "When to use `--ai-review`" rule above).  Per the "always use `pr`, never the `/pr-create` skill" section above.  `pr` works unchanged in a worktree — `git push` and `gh pr` are pwd-aware, and `clickup pr-task` is git-free.
+  3. **Open the PR.**  From inside the worktree: for `public-api` work, `/public-api-pr` (no `--ai-review` unless the operator explicitly asked for it in the current request — see the "When to use `--ai-review`" rule above).  Per the "PR creation — for public-api, use `/public-api-pr`, never `/pr-create`" section below.  Everything works unchanged in a worktree — `git push` and `gh pr` are pwd-aware, and `clickup pr-task` is git-free.
   4. **Update the ExecPlan** if one applies — tick milestone checkboxes, add Surprises/Decisions.  Follow-up commit + `pr` updates the existing PR.
   5. **Leave the worktree in place** until the PR merges.  Post-merge, run `cleanup` (alias for `cp_cleanup_branches`) — it removes worktrees whose upstream is gone, marks the ClickUp task DONE, and deletes the local branch.  Don't manually `git worktree remove` or `git branch -D` without explicit user approval.
 
@@ -59,6 +59,17 @@ If a future master adds another yarn/npm project root, the same "state file" err
 - **Use absolute paths** into the worktree directory in tool calls; do not rely on shell `cd` persistence assumptions.
 - `~/worktrees/` is per-devcontainer-instance state and is not in dotfiles.
 
+## Implementing a plan (`implement @<...>.plan.md`)
+
+When the user says **"implement @<path>.plan.md"** (or a close variant — "implement this plan", "build out @foo.plan.md", etc.), treat it as the standing public-api implementation kickoff and apply these defaults without needing them spelled out:
+
+1. **Use the devcontainer worktree workflow** — `start --worktree <task-id>` (or `new --worktree`), per the [Devcontainer worktree workflow](#devcontainer-worktree-workflow) section above.  Operate inside the worktree using absolute paths.
+   - Exception: if the user explicitly says to use the current branch / `/workspace` (e.g. "implement @plan using current branch"), honour that instead of creating a worktree.
+2. **Implement per the plan and the repo standards** — red/green TDD with visible cycles, signed commits that run the pre-commit hooks, and keep the plan's Progress/checkboxes current as work lands (all per the repo's `AGENTS.md` / `public-api/design/development.md`).
+3. **On completion, issue the PR with `/public-api-pr`** — the default review-and-ship route (silent draft -> fresh no-context `public-api-code-review` + CI loop -> converge -> un-draft + reviewer ping).  Use the skip route (`/public-api-pr` with "no review" / "quick pr" / `--skip-review`) only when the user asked for a quick PR.  Do not pass `--ai-review`/greptile unless the user explicitly asked (see the `--ai-review` rule above).
+
+The point is that a terse "implement @foo.plan.md" should do the right thing end-to-end; the operator no longer needs to restate "using devcontainer workflow" or "use /public-api-pr" each time.  Naming the route explicitly in the prompt still works and overrides the default.
+
 ## Workflow commands
 
 ### `new` / `cp_new_task <title> [description] [--no-assignment] [--no-start] [--worktree]`
@@ -81,23 +92,6 @@ Starts work on a ClickUp task:
 Accepts a task ID or a ClickUp URL (e.g. `https://app.clickup.com/t/86ewdbtbh`).
 
 - `--worktree` replaces step 2 with the [devcontainer worktree workflow](#devcontainer-worktree-workflow): creates a fresh worktree off `origin/master` instead of checking out in the current repo.  Devcontainer-only.
-
-### `pr` / `cp_pr_task [--body DESCRIPTION] [--ai-review | -ar | --greptile] [--no-slack] [--channel CHANNEL_ID]`
-
-Creates or updates a PR for the current branch:
-
-1. Pushes the current branch (sets upstream if needed).
-2. Extracts task ID from branch name.
-3. Fetches task name/description from ClickUp API.
-4. Generates PR title as `[CU-{taskid}] {Capitalized title}`.
-5. Creates a **draft** PR with reviewer `Carepatron/platform`, or updates an existing PR.
-6. Marks the ClickUp task as IN REVIEW.
-7. By default, posts a "PR please\n<url>" Slack message to `$SLACK_PR_NOTIFY_DEFAULT_CHANNEL` (set in `~/.zshrc.local`).  Requires `SLACK_APP_PR_NOTIFY_TOKEN` (see `cp/slack.zsh`).  If neither the env var nor `--channel` is set, the Slack step is silently skipped.
-
-Use `--body` to provide a custom PR description; otherwise uses the ClickUp task description.
-Use `--ai-review` (aliases: `-ar`, `--greptile`) to add the `greptile` label so the Greptile AI reviewer bot reviews this PR.
-Use `--no-slack` to skip the Slack notification.
-Use `--channel <id>` to override the destination channel/DM for a single invocation (otherwise uses `$SLACK_PR_NOTIFY_DEFAULT_CHANNEL`).
 
 #### When to use `--ai-review` / `-ar` / `--greptile`
 
@@ -124,16 +118,38 @@ Cleans up merged branches:
 3. Removes worktrees for the gone branches (`git worktree remove`).
 4. Deletes the local branches (`git bclean`).
 
-### PR creation — always use `pr`, never the `/pr-create` skill
+### `pr` / `cp_pr_task [--body DESCRIPTION] [--ai-review | -ar | --greptile] [--no-slack] [--channel CHANNEL_ID]`
 
-For any request that means "make a PR" — including "pr this", "commit and PR", "create a pull request", "open a PR", "make a draft PR", etc. — run the `pr` zsh alias (`cp_pr_task`) in the shell, not the `/pr-create` skill.
+Creates or updates a PR for the current branch:
 
-Reason: `pr` does additional useful work the skill doesn't:
+1. Pushes the current branch (sets upstream if needed).
+2. Extracts task ID from branch name.
+3. Fetches task name/description from ClickUp API.
+4. Generates PR title as `[CU-{taskid}] {Capitalized title}`.
+5. Creates a **draft** PR with reviewer `Carepatron/platform`, or updates an existing PR.
+6. Marks the ClickUp task as IN REVIEW.
+7. By default, posts a "PR please\n<url>" Slack message to `$SLACK_PR_NOTIFY_DEFAULT_CHANNEL` (set in `~/.zshrc.local`).  Requires `SLACK_APP_PR_NOTIFY_TOKEN` (see `cp/slack.zsh`).  If neither the env var nor `--channel` is set, the Slack step is silently skipped.
 
-- LLM-generated description from branch diff (when `--body` is omitted)
-- Auto-opens the PR in browser
-- Honours `--ai-review` / `-ar` / `--greptile` for Greptile bot opt-in (only when the operator explicitly asks — see the rule above)
-- Marks the ClickUp task as IN REVIEW automatically
+Use `--body` to provide a custom PR description; otherwise uses the ClickUp task description.
+Use `--ai-review` (aliases: `-ar`, `--greptile`) to add the `greptile` label so the Greptile AI reviewer bot reviews this PR.
+Use `--no-slack` to skip the Slack notification.
+Use `--channel <id>` to override the destination channel/DM for a single invocation (otherwise uses `$SLACK_PR_NOTIFY_DEFAULT_CHANNEL`).
+
+*Note:  Almost always you should use `/public-api-pr` instead of `pr` directly.*
+
+### `/public-api-pr` for PR creation
+
+*For public-api, use `/public-api-pr`, never `/pr-create`*
+
+For any request that means "make a PR" — "pr this", "commit and PR", "create a pull request", "open a PR", "make a draft PR", etc. — on **`public-api`** work the agent issues it through **`/public-api-pr`**, not the repo-level **`/pr-create`** skill, and not by running the bare `pr` alias itself.
+
+The distinction that matters: `/pr-create` is the generic, repo-level PR skill; **`/public-api-pr` is the public-api PR process** — it wraps the `pr` shell function (so the ClickUp IN REVIEW transition, the title/body, the reviewer assignment, and the browser-open all still happen) and adds the fresh no-context `/public-api-code-review` + CI loop on top.  For a quick PR with no self-review, invoke `/public-api-pr` with skip intent ("quick pr" / "no review" / `--skip-review`); that delegates to a bare `pr`.  Either way the agent goes through `/public-api-pr`, not `/pr-create` and not the raw alias.
+
+- **Outside `public-api`** (e.g. `ui/`), `/public-api-pr` doesn't apply — fall back to the `pr` zsh alias (`cp_pr_task`) in the shell, still never `/pr-create`.
+
+The bare `pr` alias stays the **operator's own** manual terminal route: if I (Justin) want a raw `pr`, I run it myself — I don't need to ask the agent.
+
+Never use `/pr-create`: `pr` (and `/public-api-pr` on top of it) does useful work it doesn't — an LLM/ClickUp-sourced description, auto-opening the PR in the browser, `--ai-review`/greptile opt-in (only when explicitly asked — see the rule above), and the ClickUp IN REVIEW transition.
 
 ### ClickUp CLI (`clickup <command>`)
 
@@ -184,31 +200,38 @@ Reason: `git log` on `master` *looks* like every commit is `[CU-...]`-prefixed, 
 
 ## Investigating CI failures
 
-  The devcontainer's `gh` token lacks perms for status-check rollups and check-run annotations, so several common commands either return 403 or
-  fail silently with no output.  Skip the broken ones and use the API-direct path below.
+The devcontainer's `gh` is authenticated with a fine-grained PAT, and the **only** thing that genuinely doesn't work is the status-check *rollup* — GitHub does not allow `checks:read` on fine-grained PATs.
 
-  **Don't use** (will 403 or return nothing — no point retrying):
+**Avoid:**
 
-  - `gh pr checks <pr-number>` — GraphQL rollup, 403s on every status context.
-  - `gh run view <run-id>` — 403 fetching annotations.
-  - `gh run view <run-id> --log` / `--log-failed` — silent (no output, no error).
-  - `gh run view --job <job-id> --log` — same silent failure.
+- `gh pr checks <pr-number>` — GraphQL `statusCheckRollup` -> "Resource not accessible by personal access token".  No workaround on a fine-grained PAT; use `gh run list` instead.
 
-  **Use instead:**
+**These work (on completed runs):**
 
-  1. **Find failing runs on the PR's branch.**
-     gh run list --branch  --limit 10
-  Tab-separated columns:
-  `status\tconclusion\tworkflow\tjob\tbranch\tevent\trun-id\tduration\tcreated-at`.  Filter rows where
-  `conclusion = failure`.
-  
-  2. **List jobs inside the failing run** to identify the failing job and its id:
-     gh api repos///actions/runs//jobs
-       --jq '.jobs[] | {name, conclusion, html_url}'
-  The `html_url` ends with `/job/<job-id>`.
-  
-  3. **Pull the failing job's raw log** (often large — pipe to `tail`/`grep`):
-     gh api repos///actions/jobs//logs 2>&1 | tail -80 
+- `gh run view <run-id>` — shows the job list and per-job status.  Only its trailing `ANNOTATIONS` section 403s (the same `checks:read` gap) — ignore that one section.
+- `gh run view <run-id> --log` and `gh run view --job <job-id> --log` — print the full logs.  (A `141` exit when you pipe to `head` is just SIGPIPE, not a failure.)
 
-  Tip: get `<owner>/<repo>` via `gh repo view --json nameWithOwner -q .nameWithOwner`.
+**Scriptable path (handy for filtering large logs):**
+
+1. Find runs on the PR's branch (filter `conclusion == "failure"`; for the current HEAD only, also `headSha == $(git rev-parse HEAD)`):
+
+   ```bash
+   gh run list --branch "<branch>" --limit 10 \
+     --json databaseId,headSha,status,conclusion,workflowName
+   ```
+
+2. List the jobs in a run to find the failing job id (`html_url` ends with `/job/<job-id>`):
+
+   ```bash
+   gh api "repos/<owner>/<repo>/actions/runs/<run-id>/jobs" \
+     --jq '.jobs[] | {name, conclusion, html_url}'
+   ```
+
+3. Pull a job's raw log (often large — pipe to `tail` / `grep`):
+
+   ```bash
+   gh api "repos/<owner>/<repo>/actions/jobs/<job-id>/logs" 2>&1 | tail -80
+   ```
+
+Tip: get `<owner>/<repo>` via `gh repo view --json nameWithOwner -q .nameWithOwner`.
 
