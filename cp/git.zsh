@@ -638,21 +638,20 @@ Only return the PR description, don't return anything else."
     sanitized_pr=$(tr -d '\000-\037' <<<"$existing_pr")
     pr_number=$(jq -r .number <<<"$sanitized_pr")
 
-    if [[ "$SKIP_LLM" == "true" ]]; then
-      if [[ -n "$pr_description" && "$pr_description" != "" ]]; then
-        info "🔄 Updating existing PR #$pr_number"
-        gh pr edit $pr_number --title "$pr_title" --body "$pr_description"
-        [[ "$ai_review" == true ]] && gh pr edit "$pr_number" --add-label "$ai_review_label"
-      else
-        info "🔄 Updating existing PR #$pr_number (title only)"
-        gh pr edit $pr_number --title "$pr_title"
-        [[ "$ai_review" == true ]] && gh pr edit "$pr_number" --add-label "$ai_review_label"
-      fi
+    # Clobber-guard: on UPDATE, only overwrite the body when an explicit --body was passed.
+    # Otherwise leave the existing body untouched - it may have been hand-edited or authored
+    # by the public-api-pr skill (gh pr edit --body-file), and silently replacing it with the
+    # ClickUp task text on every re-run is destructive.  The title is derived/cheap, so it is
+    # always refreshed.  (Initial PR creation, in the else branch below, still seeds the body
+    # from --body / the LLM step / the ClickUp description.)
+    if [[ -n "$custom_body" ]]; then
+      info "🔄 Updating existing PR #$pr_number (title + provided --body)"
+      gh pr edit "$pr_number" --title "$pr_title" --body "$custom_body"
     else
-      info "🔄 Updating existing PR #$pr_number"
-      gh pr edit $pr_number --title "$pr_title" --body "$pr_description"
-      [[ "$ai_review" == true ]] && gh pr edit "$pr_number" --add-label "$ai_review_label"
+      info "🔄 Updating existing PR #$pr_number (title only; preserving existing body)"
+      gh pr edit "$pr_number" --title "$pr_title"
     fi
+    [[ "$ai_review" == true ]] && gh pr edit "$pr_number" --add-label "$ai_review_label"
     echo "🎉 Successfully updated PR"
   else
     # Create new PR via CLI (so we can set reviewer); then open in browser.
