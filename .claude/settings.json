@@ -1,4 +1,5 @@
 {
+  "cleanupPeriodDays": 36500,
   "statusLine": {
     "type": "command",
     "command": "npx ccusage@latest statusline"
@@ -17,5 +18,41 @@
         ]
       }
     ]
+  },
+  "skillOverrides": {
+    "cloudwatch": "off",
+    "context-gathering": "off",
+    "datafix": "off",
+    "debug-ai-scribe": "off",
+    "debug-booking": "off",
+    "debug-scoring": "off",
+    "debug-telehealth": "off",
+    "doc-coauthoring": "off",
+    "doc-updater": "off",
+    "enrich-api-docs": "off",
+    "epic-plan": "off",
+    "feature-kickoff": "off",
+    "feature-planning": "off",
+    "greploop": "off",
+    "milestone-spec": "off",
+    "openspec-apply-change": "off",
+    "openspec-archive-change": "off",
+    "openspec-bulk-archive-change": "off",
+    "openspec-continue-change": "off",
+    "openspec-explore": "off",
+    "openspec-ff-change": "off",
+    "openspec-new-change": "off",
+    "openspec-onboard": "off",
+    "openspec-propose": "off",
+    "openspec-sync-specs": "off",
+    "openspec-verify-change": "off",
+    "pb-epic-planner": "off",
+    "pb-spec-dev": "off",
+    "pb-spec-planner": "off",
+    "pr-create": "off",
+    "pr-review": "off",
+    "sentry-top-issues": "off",
+    "transcription-sweeper-report": "off",
+    "vacuum": "off"
   }
 }

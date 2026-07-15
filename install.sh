@@ -24,26 +24,35 @@ for file in zshrc:.zshrc p10k.zsh:.p10k.zsh ohmyzsh.config:.ohmyzsh.config zshrc
 done
 
 # ---- Claude Code user config ----
+# Mirror the ENTIRE dotfiles .claude/ tree into ~/.claude so new files are picked up
+# automatically without editing this script -- e.g. CLAUDE.md, workflow-reference.md (the
+# deep background trimmed out of CLAUDE.md so it does NOT load into model context every
+# turn), a future agents/ dir, output styles, etc.
+#
+# settings.json here is personal *preferences* only (status line, effortLevel,
+# skillOverrides, ...).  Sandbox *policy* (bypassPermissions, the rtk hook, connectors
+# disabled) is machine-scoped and baked into the image at
+# /etc/claude-code/managed-settings.json -- do NOT duplicate policy in dotfiles.  Claude
+# Code deep-merges the managed (machine) and user scopes.
 info_log "Installing Claude Code user config"
 
+CLAUDE_SRC_DIR="$DOTFILES_DIR/.claude"
 CLAUDE_DIR="$HOME/.claude"
 mkdir -p "$CLAUDE_DIR"
-if [[ -f "$DOTFILES_DIR/.claude/CLAUDE.md" ]]; then
-  cp "$DOTFILES_DIR/.claude/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
-  debug_log "Copied .claude/CLAUDE.md -> $CLAUDE_DIR/CLAUDE.md"
+
+if [[ -d "$CLAUDE_SRC_DIR" ]]; then
+  # Trailing "/." copies the directory's *contents* (recursively, via -a) into ~/.claude,
+  # overwriting only the files present in dotfiles -- runtime state (.credentials.json,
+  # history, memory, settings.local.json) is left untouched because it isn't in the source.
+  cp -a "$CLAUDE_SRC_DIR/." "$CLAUDE_DIR/"
+  debug_log "Copied $CLAUDE_SRC_DIR/ -> $CLAUDE_DIR/"
+  if [ "${DEBUG:-false}" = "true" ]; then
+    find "$CLAUDE_SRC_DIR" -type f -printf '%P\n' | while read -r rel; do
+      debug_log "  .claude/$rel -> $CLAUDE_DIR/$rel"
+    done
+  fi
 else
-  warn_log "Source file not found: $DOTFILES_DIR/.claude/CLAUDE.md"
-fi
-# User-scope Claude Code settings.json holds personal *preferences* only (status
-# line, effortLevel, showTurnDuration, ...).  Sandbox *policy* (bypassPermissions,
-# the rtk hook, connectors disabled, etc.) is machine-scoped and baked into the
-# devcontainer image at /etc/claude-code/managed-settings.json -- do NOT duplicate
-# it here.  Claude Code deep-merges the managed (machine) and user scopes.
-if [[ -f "$DOTFILES_DIR/.claude/settings.json" ]]; then
-  cp "$DOTFILES_DIR/.claude/settings.json" "$CLAUDE_DIR/settings.json"
-  debug_log "Copied .claude/settings.json -> $CLAUDE_DIR/settings.json"
-else
-  warn_log "Source file not found: $DOTFILES_DIR/.claude/settings.json"
+  warn_log "Source dir not found: $CLAUDE_SRC_DIR"
 fi
 
 # ---- Git aliases ----
@@ -78,13 +87,23 @@ info_log "Dotfiles installed successfully"
 
 if [ "${DEBUG:-false}" = "true" ]; then
   debug_log "--- Installed config files ---"
-  for f in ~/.zshrc ~/.p10k.zsh ~/.ohmyzsh.config ~/.zshrc.local ~/.claude/CLAUDE.md ~/.claude/settings.json; do
+  for f in ~/.zshrc ~/.p10k.zsh ~/.ohmyzsh.config ~/.zshrc.local; do
     if [[ -f "$f" ]]; then
       debug_log "  $f ($(wc -c < "$f") bytes)"
     else
       debug_log "  $f MISSING"
     fi
   done
+  if [[ -d "$CLAUDE_SRC_DIR" ]]; then
+    find "$CLAUDE_SRC_DIR" -type f -printf '%P\n' | while read -r rel; do
+      f="$CLAUDE_DIR/$rel"
+      if [[ -f "$f" ]]; then
+        debug_log "  $f ($(wc -c < "$f") bytes)"
+      else
+        debug_log "  $f MISSING"
+      fi
+    done
+  fi
   debug_log "git include.path = $(git config --global --get include.path 2>/dev/null || echo 'NOT SET')"
   debug_log "DOTZSH will resolve to: ${DOTZSH:-$HOME/dotfiles}"
 fi
