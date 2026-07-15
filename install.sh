@@ -23,16 +23,27 @@ for file in zshrc:.zshrc p10k.zsh:.p10k.zsh ohmyzsh.config:.ohmyzsh.config zshrc
   fi
 done
 
-# ---- Claude Code user config ----                                                                                                                                                                   
-info_log "Installing Claude Code user config"                                                                                                                                                         
-                                                                                                                                                                                                      
-CLAUDE_DIR="$HOME/.claude"                                                                                                                                                                            
-mkdir -p "$CLAUDE_DIR"                                                                                                                                                                                
+# ---- Claude Code user config ----
+info_log "Installing Claude Code user config"
+
+CLAUDE_DIR="$HOME/.claude"
+mkdir -p "$CLAUDE_DIR"
 if [[ -f "$DOTFILES_DIR/.claude/CLAUDE.md" ]]; then
   cp "$DOTFILES_DIR/.claude/CLAUDE.md" "$CLAUDE_DIR/CLAUDE.md"
   debug_log "Copied .claude/CLAUDE.md -> $CLAUDE_DIR/CLAUDE.md"
 else
   warn_log "Source file not found: $DOTFILES_DIR/.claude/CLAUDE.md"
+fi
+# User-scope Claude Code settings.json holds personal *preferences* only (status
+# line, effortLevel, showTurnDuration, ...).  Sandbox *policy* (bypassPermissions,
+# the rtk hook, connectors disabled, etc.) is machine-scoped and baked into the
+# devcontainer image at /etc/claude-code/managed-settings.json -- do NOT duplicate
+# it here.  Claude Code deep-merges the managed (machine) and user scopes.
+if [[ -f "$DOTFILES_DIR/.claude/settings.json" ]]; then
+  cp "$DOTFILES_DIR/.claude/settings.json" "$CLAUDE_DIR/settings.json"
+  debug_log "Copied .claude/settings.json -> $CLAUDE_DIR/settings.json"
+else
+  warn_log "Source file not found: $DOTFILES_DIR/.claude/settings.json"
 fi
 
 # ---- Git aliases ----
@@ -67,7 +78,7 @@ info_log "Dotfiles installed successfully"
 
 if [ "${DEBUG:-false}" = "true" ]; then
   debug_log "--- Installed config files ---"
-  for f in ~/.zshrc ~/.p10k.zsh ~/.ohmyzsh.config ~/.zshrc.local ~/.claude/CLAUDE.md; do
+  for f in ~/.zshrc ~/.p10k.zsh ~/.ohmyzsh.config ~/.zshrc.local ~/.claude/CLAUDE.md ~/.claude/settings.json; do
     if [[ -f "$f" ]]; then
       debug_log "  $f ($(wc -c < "$f") bytes)"
     else
