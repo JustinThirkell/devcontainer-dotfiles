@@ -8,5 +8,9 @@
     "gitignore_global*": "gitignore",
     "": "shellscript",
     "config.local": "properties"
+  },
+  "[javascript,json,jsonc]": {
+    "editor.defaultFormatter": "biomejs.biome",
+    "editor.formatOnSave": true
   }
 }
