@@ -2,7 +2,7 @@
   "cleanupPeriodDays": 36500,
   "statusLine": {
     "type": "command",
-    "command": "npx ccusage@latest statusline"
+    "command": "/usr/local/bin/ccusage statusline"
   },
   "effortLevel": "xhigh",
   "showTurnDuration": true,
