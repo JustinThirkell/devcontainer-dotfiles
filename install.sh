@@ -12,7 +12,7 @@ debug_log "DEBUG_DEVCONTAINER=${DEBUG_DEVCONTAINER:-false}"
 # ---- Copy config files into $HOME ----
 info_log "Copying config files into \$HOME"
 
-for file in zshrc:.zshrc p10k.zsh:.p10k.zsh ohmyzsh.config:.ohmyzsh.config zshrc.local:.zshrc.local; do
+for file in zshrc:.zshrc p10k.zsh:.p10k.zsh ohmyzsh.config:.ohmyzsh.config zshrc.local:.zshrc.local tmux.conf:.tmux.conf; do
   src="${file%%:*}"
   dst="$HOME/${file##*:}"
   if [[ -f "$DOTFILES_DIR/$src" ]]; then
