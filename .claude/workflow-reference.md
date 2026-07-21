@@ -17,7 +17,9 @@ All worktrees and `/workspace` share ONE physical node_modules tree (via symlink
 
 `~/worktrees/` is per-devcontainer-instance state and is not in dotfiles.
 
-## Why never `/pr-create`
+## Worktree: why `new --worktree` is the default (never ask "new or reuse?")
+
+"use devcontainer workflow" and "implement @<plan>" must be autonomous through task creation.  The only disambiguator is whether the *current request* supplies an explicit task id / ClickUp URL: yes -> `start --worktree <id>`; no -> `new --worktree`, full stop.  A plan/design file, a milestone or PR-split being continued, and prior/merged/related ClickUp tasks are context, not a task id - treating them as a reason to reuse an old task or to raise a "which task?" HITL prompt stalls exactly the workflow the operator asked to run autonomously (and the related tasks are typically already merged/closed anyway).  This is the same failure mode as the old `--ai-review` "substantive changes" carve-out: given any wiggle room the agent invents a "but this looks related" exception and deviates from the default.  There is no such exception.  Erring toward a fresh task is cheap (a stray empty task is trivially cleaned up via `cleanup`); stopping to ask burns a turn on a decision the operator has repeatedly signalled they don't want to make.
 
 `pr` (and `/public-api-pr` on top of it) does work `/pr-create` doesn't: an LLM/ClickUp-sourced description, auto-open in the browser, `--ai-review`/greptile opt-in (only when explicitly asked), and the ClickUp IN REVIEW transition.
 

@@ -15,11 +15,13 @@ Shell workflow commands installed by dotfiles in the devcontainer (zsh functions
 
 ## Devcontainer worktree workflow
 
-Trigger: "use devcontainer worktree workflow" / "worktree this" / any close variant -> use `--worktree` on `new` (new task) or `start` (existing task id).  Each task gets its own worktree under `~/worktrees/` so parallel Claude sessions don't collide on `/workspace`.
+Trigger: "use devcontainer worktree workflow" / "worktree this" / "use devcontainer workflow" / any close variant.  Each task gets its own worktree under `~/worktrees/` so parallel Claude sessions don't collide on `/workspace`.
+
+**Default is `new --worktree` - create a fresh ClickUp task autonomously.  Do NOT ask "new or reuse?".**  Only use `start --worktree <id>` when the *current request* supplies an explicit task id or ClickUp URL.  A referenced plan/design file, a milestone or PR-split you're continuing, and prior/merged/related ClickUp tasks are context - NOT a task id, and NOT a reason to reuse an old task or to stop and ask.  When in doubt, `new --worktree` and proceed.  (Why new-by-default: see workflow-reference.md.)
 
 ```zsh
-new --worktree "Task title" [description]   # new task: ClickUp task + worktree + branch + symlinks + IN PROGRESS + sprint
-start --worktree <task-id>                  # existing task id
+new --worktree "Task title" [description]   # DEFAULT: no id in the request -> new ClickUp task + worktree + branch + symlinks + IN PROGRESS + sprint
+start --worktree <task-id>                  # ONLY when the request gives an explicit task id / ClickUp URL
 ```
 
 `--worktree` routes through `git_worktree_for_task_branch` (in `~/dotfiles/cp/git.zsh`): fetches origin, `worktree add ~/worktrees/CU-{id}-{slug} -b {branch} origin/master`, and symlinks the standard node_modules paths.  Fails fast on conflict.  (Why the symlinks are needed + the shared-node_modules concurrency rule: see workflow-reference.md.)
@@ -43,7 +45,7 @@ Constraints:
 
 "implement @<path>.plan.md" (or a close variant) is the standing public-api kickoff.  Defaults:
 
-1. Use the worktree workflow (`start --worktree <task-id>` / `new --worktree`).  Exception: if told to use the current branch / `/workspace`, honour that.
+1. Use the worktree workflow.  Default to `new --worktree` and create the task autonomously - implementing or continuing a plan/milestone is NOT a reason to reuse a prior task or to ask which one.  Use `start --worktree <id>` only if the request supplies an explicit task id.  Exception: if told to use the current branch / `/workspace`, honour that.
 2. Implement per the plan + repo standards: red/green TDD with visible cycles, signed commits that run hooks, keep the plan's Progress/checkboxes current.
 3. On completion, PR via `/public-api-pr` (default review route).  Skip route ("no review" / "quick pr" / `--skip-review`) only if asked.  No `--ai-review`/greptile unless explicitly asked.
 
