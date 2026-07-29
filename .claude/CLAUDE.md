@@ -13,6 +13,16 @@ Shell workflow commands installed by dotfiles in the devcontainer (zsh functions
 - Prefer the native `Grep` / `Glob` / `Read` tools for searching and reading files.  Use `Bash` only for commands with no native equivalent (git, gh, aws, dotnet, tests, docker).  Native search/read is more token-efficient and bypasses the rtk output-rewrite hook, which otherwise truncates or mangles `grep` / `find` / diff output.
 - Operate inside a worktree using **absolute paths**; do not rely on `cd` persistence - the Bash tool resets cwd to the project dir every call, so `cd $WT` churn is wasted and error-prone.
 
+## Standing authorizations (do NOT stop to ask)
+
+These are pre-decided.  Treat each as durable authorization and act without pausing for approval.  Asking anyway is a workflow violation, not caution - it costs a round trip at exactly the point the work is finished and the context is hottest.
+
+- **Create the ClickUp task + worktree** (`new --worktree`) when a request has no task id.  Never ask "new or reuse?".
+- **Open the PR** via `/public-api-pr` when implementation is complete.  Never ask "shall I open the PR?" / "say the word".
+- **Ship a converged, CI-green PR** - `/public-api-pr` auto-ships; never add a "proceed?" gate in front of it.
+
+The genuine human gates are narrow and named: the mid-loop fix-choice and rule-candidate gates inside `/public-api-pr`, its non-converged pause, and anything this file explicitly marks opt-in (`--ai-review`, `--no-slack`, the skip route).  If it is not on that list, proceed.
+
 ## Devcontainer worktree workflow
 
 Trigger: "use devcontainer worktree workflow" / "worktree this" / "use devcontainer workflow" / any close variant.  Each task gets its own worktree under `~/worktrees/` so parallel Claude sessions don't collide on `/workspace`.
@@ -30,7 +40,7 @@ After the worktree exists:
 
 1. `cd ~/worktrees/CU-{id}-{slug}/` and work inside it with absolute paths.  Red/green TDD per `public-api/design/development.md`.
 2. Commit in logical units - signed, hooks must run (see Git commit rules).
-3. Open the PR: for public-api work use `/public-api-pr` (see PR creation).
+3. Open the PR: for public-api work use `/public-api-pr` (see PR creation).  **Pre-authorized - do this without asking.**
 4. Update the ExecPlan if one applies (tick checkboxes, add Surprises/Decisions).
 5. Leave the worktree until the PR merges; post-merge run `cleanup`.  Don't manually `git worktree remove` / `branch -D` without approval.
 
@@ -47,11 +57,13 @@ Constraints:
 
 1. Use the worktree workflow.  Default to `new --worktree` and create the task autonomously - implementing or continuing a plan/milestone is NOT a reason to reuse a prior task or to ask which one.  Use `start --worktree <id>` only if the request supplies an explicit task id.  Exception: if told to use the current branch / `/workspace`, honour that.
 2. Implement per the plan + repo standards: red/green TDD with visible cycles, signed commits that run hooks, keep the plan's Progress/checkboxes current.
-3. On completion, PR via `/public-api-pr` (default review route).  Skip route ("no review" / "quick pr" / `--skip-review`) only if asked.  No `--ai-review`/greptile unless explicitly asked.
+3. On completion, **open the PR via `/public-api-pr` immediately - pre-authorized, do NOT stop to ask.**  Finishing the implementation IS the trigger; there is no separate go-ahead.  Skip route ("no review" / "quick pr" / `--skip-review`) only if asked.  No `--ai-review`/greptile unless explicitly asked.
 
 ## PR creation - public-api uses `/public-api-pr`, never `/pr-create`
 
 Any "make a PR" request on public-api work goes through `/public-api-pr`.  It wraps the `pr` shell function (ClickUp IN REVIEW, title/body, reviewer, browser-open) and adds the fresh no-context `/public-api-code-review` + CI loop.  Quick PR with no self-review: `/public-api-pr` with skip intent.  Outside public-api (e.g. ui/): fall back to the `pr` alias (`cp_pr_task`), still never `/pr-create`.  The bare `pr` alias is Justin's own manual route.  (Why never `/pr-create`: see workflow-reference.md.)
+
+**Do not ask permission to run it.**  Completing the work is the trigger.  `/public-api-pr` opens a *draft* PR and pings nobody until its review loop converges, so there is no outward-facing action to gate on - and the skill's own two-session split (Session A stops after writing the handoff; the operator launches Session B) is unconditional and likewise never posed as a question.
 
 ### `--ai-review` / `-ar` / `--greptile` - explicit opt-in only
 
