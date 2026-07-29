@@ -267,6 +267,8 @@ git_worktree_for_task_branch() {
       "/workspace/ui/node_modules"
       "/workspace/infra/stacks/public-api/node_modules"
       "/workspace/public-api/console/node_modules"
+      "/workspace/public-api/openapi/node_modules"
+      "/workspace/public-api/openapi/console-gateway/node_modules"
     )
   fi
 
