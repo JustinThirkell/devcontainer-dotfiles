@@ -2,7 +2,7 @@
   "cleanupPeriodDays": 36500,
   "statusLine": {
     "type": "command",
-    "command": "/usr/local/bin/ccusage statusline"
+    "command": "$HOME/.claude/ccusage-statusline.sh"
   },
   "effortLevel": "xhigh",
   "showTurnDuration": true,
@@ -64,6 +64,14 @@
     "pr-review": "off",
     "sentry-top-issues": "off",
     "transcription-sweeper-report": "off",
-    "vacuum": "off"
+    "vacuum": "off",
+    "tech-lead": "off",
+    "tech-architect": "off",
+    "design-lead": "off",
+    "leadership-pipeline": "off",
+    "retire-flag": "off",
+    "project-manager": "off",
+    "qa-lead": "off",
+    "product-owner": "off"
   }
 }
