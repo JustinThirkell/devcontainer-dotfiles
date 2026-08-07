@@ -23,6 +23,13 @@ These are pre-decided.  Treat each as durable authorization and act without paus
 
 The genuine human gates are narrow and named: the mid-loop fix-choice and rule-candidate gates inside `/public-api-pr`, its non-converged pause, and anything this file explicitly marks opt-in (`--ai-review`, `--no-slack`, the skip route).  If it is not on that list, proceed.
 
+## Complete the work before the handoff
+
+Resolve everything the work raised before handing it to a reviewer, a handoff doc, or back to me.  A handoff carries findings, not questions.
+Every "does X actually do Y?" has an authoritative source - the dependency's own code, the running system's telemetry, the compiler, a test.  Consult it.  Inference from a name, from documentation, or from what you assumed three turns ago is not an answer - and whoever you are handing to is colder than you, so what you punt gets guessed at rather than answered.
+Escalate only what I alone can settle: a deployed-environment check, or a judgement that is mine (product behaviour, risk appetite, naming).  Raise it while we are still talking; it is not review input.
+If resolving something overturns what you already wrote - comments, commit message, PR body - correct it in the same pass.  A right answer beside stale prose is still a wrong PR.
+
 ## Devcontainer worktree workflow
 
 Trigger: "use devcontainer worktree workflow" / "worktree this" / "use devcontainer workflow" / any close variant.  Each task gets its own worktree under `~/worktrees/` so parallel Claude sessions don't collide on `/workspace`.
