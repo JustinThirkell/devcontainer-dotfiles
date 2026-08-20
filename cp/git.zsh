@@ -265,7 +265,8 @@ git_worktree_for_task_branch() {
     worktree_paths=(
       "/workspace/node_modules"
       "/workspace/ui/node_modules"
-      "/workspace/ui/types/carepatron-api/node_modules"
+      "/workspace/ui/e2e/main/node_modules"
+      "/workspace/ui/packages/main/node_modules"
       "/workspace/infra/stacks/public-api/node_modules"
       "/workspace/public-api/console/node_modules"
       "/workspace/public-api/openapi/node_modules"

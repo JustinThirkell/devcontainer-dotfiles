@@ -9,7 +9,7 @@ A fresh worktree under `~/worktrees/...` has no node_modules of its own, for two
 - `/workspace/node_modules` is a Docker named volume mounted **only** at that exact path - invisible anywhere outside it (including any worktree).
 - `/workspace/ui/node_modules` and `/workspace/infra/stacks/public-api/node_modules` are part of the host bind mount; they exist only under `/workspace`.
 
-The `--worktree` symlinks point the worktree at the same files `/workspace` uses.  Without them: `yarn` -> "Couldn't find the node_modules state file"; pre-commit eslint (lefthook scoped to ui/) fails the same way; `npx jest` from infra/stacks/public-api/ cannot find jest.  Current symlinked paths: `/workspace/node_modules`, `/workspace/ui/node_modules`, `/workspace/infra/stacks/public-api/node_modules`, `/workspace/public-api/console/node_modules`.
+The `--worktree` symlinks point the worktree at the same files `/workspace` uses.  Without them: `yarn` -> "Couldn't find the node_modules state file"; pre-commit eslint (lefthook scoped to ui/) fails the same way; `npx jest` from infra/stacks/public-api/ cannot find jest; pre-commit `generate ❯ openapi-typegen` (any commit staging openapi/) writes all ~105 files then dies in `rtkq-postprocess` with "Cannot find module .../ui/types/carepatron-api/node_modules/cross-env/dist/bin/cross-env.js", and its `set -eu` turns that into a blocked commit.
 
 ## Worktree: the never-`yarn install`-in-a-worktree rule (concurrency, not isolation)
 
