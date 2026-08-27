@@ -23,6 +23,24 @@ for file in zshrc:.zshrc p10k.zsh:.p10k.zsh ohmyzsh.config:.ohmyzsh.config zshrc
   fi
 done
 
+# ---- Shell completions ----
+# For tools that ship no zsh completion of their own and have no oh-my-zsh plugin.
+# zsh/completion.zsh puts this directory on fpath.
+info_log "Installing shell completions"
+
+COMPLETIONS_DIR="$HOME/.zsh/completions"
+mkdir -p "$COMPLETIONS_DIR"
+
+# `just --completions zsh` emits a stub that re-invokes the binary to enumerate the
+# recipes of whichever justfile is in scope, so it needs no regenerating when just is
+# upgraded or a recipe is added.
+if command -v just >/dev/null 2>&1; then
+  just --completions zsh > "$COMPLETIONS_DIR/_just"
+  debug_log "Generated $COMPLETIONS_DIR/_just from $(just --version)"
+else
+  warn_log "just not on PATH - skipping its zsh completion"
+fi
+
 # ---- Claude Code user config ----
 # Mirror the ENTIRE dotfiles .claude/ tree into ~/.claude so new files are picked up
 # automatically without editing this script -- e.g. CLAUDE.md, workflow-reference.md (the

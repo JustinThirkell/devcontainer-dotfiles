@@ -30,4 +30,10 @@ unset config_files
 [[ -f /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh ]] && \
   source /usr/share/zsh-syntax-highlighting/zsh-syntax-highlighting.zsh
 
-compinit -C
+# Re-index completions after the topic files above have extended fpath.
+#
+# Reuse oh-my-zsh's dumpfile rather than the default ~/.zcompdump: a second dumpfile
+# would be built from this shell's fpath only, and sourcing it here replaces the
+# completion table oh-my-zsh already populated -- silently dropping every completion
+# its plugins registered.  No -C, so a new file in fpath is actually picked up.
+compinit -d "${ZSH_COMPDUMP:-$HOME/.zcompdump}"
