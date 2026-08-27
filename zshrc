@@ -16,7 +16,8 @@ export ZSH=$HOME/.oh-my-zsh
 source "$ZSH/oh-my-zsh.sh"
 
 # Source topic files from dotfiles subdirectories.
-# Single-depth glob avoids clickup/node_modules and root-level config files.
+# Single-depth glob: one level down only, so nested trees (e.g. a vendored node_modules)
+# and root-level config files like p10k.zsh are skipped.
 typeset -U config_files
 config_files=($DOTZSH/*/*.zsh)
 

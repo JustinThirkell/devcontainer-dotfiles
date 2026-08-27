@@ -1,8 +1,12 @@
 # dotfiles-justin
 
-Personal dotfiles for use inside devcontainers at CarePatron. Brings ClickUp CLI,
-CP workflow functions, git aliases, and Powerlevel10k prompt config into every
-devcontainer automatically.
+Personal dotfiles for use inside devcontainers at CarePatron. Brings shell config, git
+aliases, Claude Code user config, and Powerlevel10k prompt config into every devcontainer
+automatically.
+
+The Carepatron workflow tooling (ClickUp CLI, the `cp_*` workflow functions) used to live
+here. It now lives in the Carepatron-App repo under `.devcontainer/tooling/`, which the
+container loads itself -- see that repo for anything `cp_new_task` / `clickup` related.
 
 ## Overview
 
@@ -11,26 +15,18 @@ dotfiles-justin/
 ├── install.sh              # Entrypoint -- runs automatically at container start
 ├── common.sh               # Shared logging utilities (debug_log, info_log, etc.)
 ├── zshrc                   # Main shell config (copied to ~/.zshrc)
-├── zshrc.local             # Non-secret env vars (ClickUp IDs, PR reviewer, etc.)
+├── zshrc.local             # Intentionally near-empty (env vars moved to Carepatron-App)
 ├── p10k.zsh                # Powerlevel10k prompt configuration
 ├── ohmyzsh.config          # Oh My Zsh settings (theme, plugins)
 ├── gitconfig.aliases       # Git aliases (bclean, bdone, fp, re, ri, etc.)
 ├── secrets.local.example   # Documents required secrets (not committed)
-├── zsh/
-│   ├── aliases.zsh         # General-purpose aliases (j=just, etc.)
-│   ├── functions.zsh       # info/error/debug helpers, dz/dzz reload aliases
-│   ├── exports.zsh         # EDITOR, HISTSIZE, LANG, TZ, etc.
-│   └── config.zsh          # Shell options, history, keybindings
-├── clickup/
-│   ├── functions.zsh       # Zsh wrappers: clickup, clickup_start-task, etc.
-│   ├── clickup.ts          # ClickUp CLI entrypoint (TypeScript)
-│   ├── clickup-client.ts   # ClickUp API client
-│   ├── package.json        # Node dependencies (tsx, typescript)
-│   └── tsconfig.json
-└── cp/
-    ├── workflow.zsh        # cp_new_task, cp_start_task, cp_pr_task, cp_cleanup_branches
-    ├── git.zsh             # infer_branch_name, git_checkout_task_branch, git_pr_task_branch
-    └── aliases.zsh         # CP_DIR, cpa alias
+├── .claude/                # Claude Code user config, mirrored into ~/.claude
+└── zsh/
+    ├── aliases.zsh         # General-purpose aliases (j=just, etc.)
+    ├── functions.zsh       # info/error/debug helpers, dz/dzz reload aliases
+    ├── exports.zsh         # EDITOR, HISTSIZE, LANG, TZ, etc.
+    ├── config.zsh          # Shell options, history, keybindings
+    └── cswap.zsh           # claude-swap auto-rotation poller
 ```
 
 ## Configuration
@@ -81,10 +77,11 @@ The **project's devcontainer** (Dockerfile or devcontainer features) must provid
 | Oh My Zsh                | Plugin/theme framework                 |
 | Powerlevel10k            | Prompt theme                           |
 | zsh-syntax-highlighting  | Command syntax highlighting            |
-| Node.js + npm            | Runs the ClickUp TypeScript CLI        |
 | git                      | Version control                        |
-| gh                       | GitHub CLI (used by `cp_pr_task`)       |
-| jq                       | JSON parsing in workflow functions     |
+
+`install.sh` itself needs nothing beyond bash and git -- it copies files and sets one git
+`include.path`.  The workflow tooling's own prerequisites (Node, `gh`, `jq`) are the
+Carepatron-App repo's concern now and are documented there.
 
 ## What happens at runtime
 
@@ -96,23 +93,25 @@ Container starts
        └─> Runs install.sh
             ├─ Sources common.sh (logging utilities)
             ├─ Copies zshrc, p10k.zsh, ohmyzsh.config, zshrc.local into $HOME
-            ├─ Sets git include.path -> gitconfig.aliases (by reference)
-            └─ Runs npm install in clickup/ directory
+            ├─ Mirrors .claude/ into ~/.claude (CLAUDE.md, settings.json, ...)
+            └─ Sets git include.path -> gitconfig.aliases (by reference)
 
 First terminal opened (zsh starts)
   └─> ~/.zshrc runs
        ├─ p10k instant prompt
-       ├─ Sources ~/.zshrc.local (ClickUp IDs, env vars)
+       ├─ Sources ~/.zshrc.local (near-empty -- see the file)
        ├─ Sources ~/.secrets.local (if present -- typically via remoteEnv)
        ├─ Sources ~/.ohmyzsh.config (sets theme, plugins)
        ├─ Sources ~/.p10k.zsh (prompt config)
        ├─ Loads Oh My Zsh
        ├─ Globs ~/dotfiles/*/*.zsh and sources all topic files:
-       │    ├─ zsh/aliases.zsh, functions.zsh, exports.zsh, config.zsh
-       │    ├─ clickup/functions.zsh
-       │    └─ cp/workflow.zsh, git.zsh, aliases.zsh
+       │    └─ zsh/aliases.zsh, functions.zsh, exports.zsh, config.zsh, cswap.zsh
        └─ Sources zsh-syntax-highlighting (if installed)
 ```
+
+The Carepatron workflow functions load separately, from the Carepatron-App repo: the
+container's baked `/etc/zsh/zshrc` sources `.devcontainer/tooling/lib/load.zsh`, and
+`.devcontainer/tooling/bin/` leads `PATH` for agents.  Nothing in this repo is involved.
 
 ## Debugging
 
@@ -144,10 +143,10 @@ prints a summary of all installed config files with their sizes.
 
 ### Common issues
 
-**ClickUp functions not working:**
-- Check that `CLICKUP_API_KEY` is set: `echo $CLICKUP_API_KEY`
-- Check that npm dependencies are installed: `ls ~/dotfiles/clickup/node_modules/.bin/tsx`
-- Re-run install: `~/.dotfiles/install.sh`
+**ClickUp / `cp_*` workflow functions not working:**
+- They are not part of these dotfiles any more -- see `.devcontainer/tooling/` in the
+  Carepatron-App repo.
+- First thing to check is still that the secret is forwarded: `echo $CLICKUP_API_KEY`
 
 **p10k prompt looks broken (missing glyphs):**
 - Install a Nerd Font on your **local machine** (not in the container).

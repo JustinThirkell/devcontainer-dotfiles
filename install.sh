@@ -70,18 +70,6 @@ else
   debug_log "git include.path already contains $ALIAS_PATH, skipping"
 fi
 
-# ---- ClickUp CLI dependencies ----
-info_log "Installing ClickUp CLI dependencies"
-
-if command -v npm &>/dev/null; then
-  cd "$DOTFILES_DIR/clickup" && npm install --no-fund --no-audit
-  cd "$DOTFILES_DIR"
-  info_log "ClickUp CLI dependencies installed"
-else
-  warn_log "npm not found -- skipping ClickUp CLI dependency install"
-  warn_log "ClickUp/CP workflow functions will not work without Node.js"
-fi
-
 # ---- Summary ----
 info_log "Dotfiles installed successfully"
 

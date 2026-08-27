@@ -1,6 +1,6 @@
 # Personal workflow (Justin)
 
-Shell workflow commands installed by dotfiles in the devcontainer (zsh functions from `~/dotfiles/cp/` and `~/dotfiles/clickup/`).  Full background/rationale for anything terse below lives in `~/dotfiles/.claude/workflow-reference.md` - read it on demand, it is deliberately NOT loaded every turn.
+Shell workflow commands provided by the devcontainer (zsh functions from the Carepatron-App repo at `.devcontainer/tooling/lib/` and `.devcontainer/tooling/clickup/`).  Full background/rationale for anything terse below lives in `~/dotfiles/.claude/workflow-reference.md` - read it on demand, it is deliberately NOT loaded every turn.
 
 ## Environment
 
@@ -11,6 +11,7 @@ Shell workflow commands installed by dotfiles in the devcontainer (zsh functions
 ## Tool use (token efficiency)
 
 - Prefer the native `Grep` / `Glob` / `Read` tools for searching and reading files.  Use `Bash` only for commands with no native equivalent (git, gh, aws, dotnet, tests, docker).  Native search/read is more token-efficient and bypasses the rtk output-rewrite hook, which otherwise truncates or mangles `grep` / `find` / diff output.
+- **The short aliases (`new`, `start`, `pr`, `cleanup`) do not exist for you.**  Agent tool calls run `bash -c`, which reads no shell rc file, so the interactive aliases are never defined.  Invoke the full name instead - `cp_new_task`, `cp_start_task`, `cp_pr_task`, `cp_cleanup_branches`, `clickup` - each is on `PATH` as an executable in `.devcontainer/tooling/bin/`.
 - Operate inside a worktree using **absolute paths**; do not rely on `cd` persistence - the Bash tool resets cwd to the project dir every call, so `cd $WT` churn is wasted and error-prone.
 
 ## Standing authorizations (do NOT stop to ask)
@@ -37,11 +38,11 @@ Trigger: "use devcontainer worktree workflow" / "worktree this" / "use devcontai
 **Default is `new --worktree` - create a fresh ClickUp task autonomously.  Do NOT ask "new or reuse?".**  Only use `start --worktree <id>` when the *current request* supplies an explicit task id or ClickUp URL.  A referenced plan/design file, a milestone or PR-split you're continuing, and prior/merged/related ClickUp tasks are context - NOT a task id, and NOT a reason to reuse an old task or to stop and ask.  When in doubt, `new --worktree` and proceed.  (Why new-by-default: see workflow-reference.md.)
 
 ```zsh
-new --worktree "Task title" [description]   # DEFAULT: no id in the request -> new ClickUp task + worktree + branch + symlinks + IN PROGRESS + sprint
-start --worktree <task-id>                  # ONLY when the request gives an explicit task id / ClickUp URL
+cp_new_task --worktree "Task title" [description]   # DEFAULT: no id in the request -> new ClickUp task + worktree + branch + symlinks + IN PROGRESS + sprint
+cp_start_task --worktree <task-id>                  # ONLY when the request gives an explicit task id / ClickUp URL
 ```
 
-`--worktree` routes through `git_worktree_for_task_branch` (in `~/dotfiles/cp/git.zsh`): fetches origin, `worktree add ~/worktrees/CU-{id}-{slug} -b {branch} origin/master`, and symlinks the standard node_modules paths.  Fails fast on conflict.  (Why the symlinks are needed + the shared-node_modules concurrency rule: see workflow-reference.md.)
+`--worktree` routes through `git_worktree_for_task_branch` (in `.devcontainer/tooling/lib/git.zsh`): fetches origin, `worktree add ~/worktrees/CU-{id}-{slug} -b {branch} origin/master`, and symlinks the standard node_modules paths.  Fails fast on conflict.  (Why the symlinks are needed + the shared-node_modules concurrency rule: see workflow-reference.md.)
 
 After the worktree exists:
 
