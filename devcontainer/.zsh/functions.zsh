@@ -1,12 +1,14 @@
-info() {
+# Underscore-prefixed so they don't shadow real commands -- a bare `info` shadows
+# /usr/bin/info, and `debug`/`error` are too generic to claim.
+_info() {
   printf "\033[0;32m%s\033[0m\n" "$1" >&2
 }
 
-error() {
+_error() {
   printf "\033[0;31m%s\033[0m\n" "$1" >&2
 }
 
-debug() {
+_debug() {
   printf "\033[0;90m%s\033[0m\n" "$1" >&2
 }
 

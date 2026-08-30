@@ -1,6 +1,6 @@
 # Justin workflow reference (background / rationale)
 
-Read this on demand - it is NOT part of the per-turn `~/.claude/CLAUDE.md`.  It holds the full "why" behind the terse rules in CLAUDE.md, moved here so it doesn't cost tokens on every turn.  Install alongside CLAUDE.md as `~/dotfiles/.claude/workflow-reference.md`.
+Read this on demand - it is NOT part of the per-turn `~/.claude/CLAUDE.md`.  It holds the full "why" behind the terse rules in CLAUDE.md, moved here so it doesn't cost tokens on every turn.  Installed alongside CLAUDE.md as `~/.claude/workflow-reference.md`.
 
 ## Worktree: why the node_modules symlinks are needed
 

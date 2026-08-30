@@ -6,27 +6,17 @@
   },
   "effortLevel": "xhigh",
   "showTurnDuration": true,
-  "hooks": {
-    "PreToolUse": [
-      {
-        "matcher": "Bash",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "rtk hook claude"
-          }
-        ]
-      }
-    ]
-  },
   "skillOverrides": {
     "cloudwatch": "off",
+    "component-audit": "off",
+    "component-skill-retro": "off",
     "context-gathering": "off",
     "datafix": "off",
     "debug-ai-scribe": "off",
     "debug-booking": "off",
     "debug-scoring": "off",
     "debug-telehealth": "off",
+    "design-lead": "off",
     "doc-coauthoring": "off",
     "doc-updater": "off",
     "enrich-api-docs": "off",
@@ -34,6 +24,10 @@
     "feature-kickoff": "off",
     "feature-planning": "off",
     "greploop": "off",
+    "leadership-pipeline": "off",
+    "library-component-build": "off",
+    "library-component-stories": "off",
+    "library-component-test": "off",
     "milestone-spec": "off",
     "openspec-apply-change": "off",
     "openspec-archive-change": "off",
@@ -57,21 +51,22 @@
     "opsx:propose": "off",
     "opsx:sync": "off",
     "opsx:verify": "off",
+    "page-recreation": "off",
+    "page-recreation-compare": "off",
     "pb-epic-planner": "off",
     "pb-spec-dev": "off",
     "pb-spec-planner": "off",
     "pr-create": "off",
     "pr-review": "off",
-    "sentry-top-issues": "off",
-    "transcription-sweeper-report": "off",
-    "vacuum": "off",
-    "tech-lead": "off",
-    "tech-architect": "off",
-    "design-lead": "off",
-    "leadership-pipeline": "off",
-    "retire-flag": "off",
+    "product-owner": "off",
     "project-manager": "off",
     "qa-lead": "off",
-    "product-owner": "off"
+    "retire-flag": "off",
+    "sentry-top-issues": "off",
+    "tech-architect": "off",
+    "tech-lead": "off",
+    "townhall-report": "off",
+    "transcription-sweeper-report": "off",
+    "vacuum": "off"
   }
 }

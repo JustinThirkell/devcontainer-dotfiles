@@ -1,15 +1,12 @@
 {
+  // Only the files VS Code can't work out on its own.  `.zshrc`, `.p10k.zsh` and
+  // `.zsh/*.zsh` are already shellscript via the built-in extension's `.zshrc`/`.zsh`
+  // associations, so they need no entry.  Globs must tolerate the leading dot.
   "files.associations": {
-    "secrets*": "properties",
-    "gitconfig*": "properties",
-    "zshrc*": "shellscript",
-    "ohmyzsh*": "shellscript",
-    "p10k*": "shellscript",
-    "gitignore_global*": "gitignore",
-    "": "shellscript",
-    "config.local": "properties"
+    "*ohmyzsh*": "shellscript",
+    "*gitconfig*": "properties"
   },
-  "[javascript,json,jsonc]": {
+  "[javascript][json][jsonc]": {
     "editor.defaultFormatter": "biomejs.biome",
     "editor.formatOnSave": true
   }

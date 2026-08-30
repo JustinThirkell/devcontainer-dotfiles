@@ -1,9 +1,0 @@
-# Intentionally near-empty.
-#
-# The Carepatron workflow env vars that used to live here (ClickUp ids, PR reviewer,
-# branch prefix, Slack notify channel) moved to Carepatron-App/.devcontainer/config.local,
-# which is gitignored and per-developer.  Do NOT re-add them: install.sh copies this file
-# to ~/.zshrc.local, which zsh reads *after* /etc/zsh/zshrc, so anything set here would
-# override that per-developer file.
-#
-# Secrets (CLICKUP_API_KEY, etc.) still come via remoteEnv in Cursor/VS Code user settings.

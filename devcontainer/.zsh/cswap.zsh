@@ -23,15 +23,15 @@
 : "${CSWAP_AUTO:=1}"
 
 _cswap_start_auto() {
-  # Interactive shells only; respect the opt-out.
-  [[ -o interactive ]] || return 0
   [[ "${CSWAP_AUTO}" == "1" ]] || return 0
   command -v cswap >/dev/null 2>&1 || return 0
   command -v flock >/dev/null 2>&1 || return 0
 
   # Only start once an account is registered, so we don't crash-loop a respawn on
   # every new shell before `cswap add` has been run.  `cswap status` exits non-zero
-  # when there is no active account.
+  # when there is no active account.  cswap is a uv-installed Python tool, so this is
+  # a full interpreter startup -- which is why the whole function runs off the prompt's
+  # critical path (see the call below).
   cswap status >/dev/null 2>&1 || return 0
 
   local dir="${HOME}/.local/share/claude-swap"
@@ -41,4 +41,10 @@ _cswap_start_auto() {
   nohup flock -n "${dir}/.auto.lock" cswap auto >>"${dir}/cswap-auto.log" 2>&1 &!
 }
 
-_cswap_start_auto
+# Interactive shells only.  The test is deliberately a separate statement: in
+# `[[ ... ]] && f &!` the `&!` terminates the whole AND-list, so the option test would
+# itself run inside the background subshell.  Backgrounding the call keeps the Python
+# interpreter startup in `cswap status` off the first prompt's critical path.
+if [[ -o interactive ]]; then
+  _cswap_start_auto &!
+fi

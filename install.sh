@@ -1,31 +1,90 @@
 #!/bin/bash
-set -e
+set -euo pipefail
+
+# ---- Logging ----------------------------------------------------------------
+# Inlined from the old common.sh: this script was its only consumer once the workflow
+# tooling moved to Carepatron-App, so the root now holds one machinery file, not two.
+if [ -t 2 ] && [ -z "${NO_COLOR:-}" ]; then
+  COLOR_DEBUG='\033[0;90m'
+  COLOR_INFO='\033[0;32m'
+  COLOR_WARN='\033[0;33m'
+  COLOR_ERROR='\033[0;31m'
+  COLOR_RESET='\033[0m'
+else
+  COLOR_DEBUG='' COLOR_INFO='' COLOR_WARN='' COLOR_ERROR='' COLOR_RESET=''
+fi
+
+# Single source of truth: set DEVCONTAINER_DEBUG=true to enable debug logging.
+DEBUG=${DEVCONTAINER_DEBUG:-false}
+
+# %s for the message rather than `echo -e`, so a backslash in a path is never eaten.
+_log() { printf '%b[%s] [dotfiles]%b %s\n' "$1" "$2" "$COLOR_RESET" "${*:3}" >&2; }
+
+# `|| return 0` first, so a debug_log call is never the failing command under `set -e`.
+debug_log() { [ "$DEBUG" = "true" ] || return 0; _log "$COLOR_DEBUG" DEBUG "$@"; }
+info_log()  { _log "$COLOR_INFO"  INFO  "$@"; }
+warn_log()  { _log "$COLOR_WARN"  WARN  "$@"; }
+error_log() { _log "$COLOR_ERROR" ERROR "$@"; }
 
 DOTFILES_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-source "$DOTFILES_DIR/common.sh"
 
 info_log "Installing dotfiles from $DOTFILES_DIR"
 debug_log "HOME=$HOME"
 debug_log "USER=${USER:-$(whoami)}"
-debug_log "DEBUG_DEVCONTAINER=${DEBUG_DEVCONTAINER:-false}"
+debug_log "DEVCONTAINER_DEBUG=${DEVCONTAINER_DEBUG:-false}"
 
-# ---- Copy config files into $HOME ----
-info_log "Copying config files into \$HOME"
+# Everything this script installs, for the debug summary at the end.
+LINKED=()
 
-for file in zshrc:.zshrc p10k.zsh:.p10k.zsh ohmyzsh.config:.ohmyzsh.config zshrc.local:.zshrc.local tmux.conf:.tmux.conf; do
-  src="${file%%:*}"
-  dst="$HOME/${file##*:}"
-  if [[ -f "$DOTFILES_DIR/$src" ]]; then
-    cp "$DOTFILES_DIR/$src" "$dst"
-    debug_log "Copied $src -> $dst"
-  else
-    warn_log "Source file not found: $DOTFILES_DIR/$src"
+# Symlink rather than copy, so editing a file in this repo takes effect on the next `dz`
+# or new shell with no reinstall.  The container's setup-dotfiles.sh re-runs this script
+# on every start, so a link something replaced with a real file self-heals.
+#
+# -s symlink, -f replace an existing file (including one left by an older copy-based
+# install), -n treat an existing symlink-to-directory as a file rather than descending
+# into it.
+link_into_home() {
+  local rel="$1" dst="$2"
+  local src="$DOTFILES_DIR/$rel"
+  if [[ ! -e "$src" ]]; then
+    warn_log "Source not found, skipping: $src"
+    return 0
   fi
-done
+  mkdir -p "$(dirname "$dst")"
+  ln -sfn "$src" "$dst"
+  LINKED+=("$dst")
+  debug_log "Linked $dst -> $src"
+}
 
-# ---- Shell completions ----
+# ---- devcontainer/ -> $HOME -------------------------------------------------
+# One rule, no per-file list: a path under devcontainer/ is installed at the same path
+# under $HOME.  devcontainer/.zshrc -> ~/.zshrc, devcontainer/.claude/CLAUDE.md ->
+# ~/.claude/CLAUDE.md, devcontainer/foo/bar/baz.conf -> ~/foo/bar/baz.conf.  Adding a new
+# dotfile means dropping it in the right place under devcontainer/ and nothing else.
+#
+# Only files are linked, never directories, so a target directory that also holds state
+# this repo doesn't own keeps it: ~/.claude/ retains .credentials.json, history.jsonl,
+# projects/ and settings.local.json, and ~/.zsh/ retains the generated completions/ below.
+#
+# Linking rather than copying means a program's own writes to a linked file (Claude Code
+# writing settings.json from /config) land back in this repo, where they can be committed.
+info_log "Linking devcontainer/ into \$HOME"
+
+DEVCONTAINER_DIR="$DOTFILES_DIR/devcontainer"
+if [[ -d "$DEVCONTAINER_DIR" ]]; then
+  while IFS= read -r rel; do
+    link_into_home "devcontainer/$rel" "$HOME/$rel"
+  done < <(cd "$DEVCONTAINER_DIR" && find . -type f ! -name '.DS_Store' | sed 's|^\./||' | sort)
+else
+  error_log "Source dir not found: $DEVCONTAINER_DIR"
+  exit 1
+fi
+
+# ---- Shell completions ------------------------------------------------------
 # For tools that ship no zsh completion of their own and have no oh-my-zsh plugin.
-# zsh/completion.zsh puts this directory on fpath.
+# .zshrc puts this directory on fpath *before* oh-my-zsh loads, so oh-my-zsh's single
+# compinit indexes it -- see the comment in devcontainer/.zshrc; the ordering is
+# load-bearing.  Generated, not linked, so it isn't committed.
 info_log "Installing shell completions"
 
 COMPLETIONS_DIR="$HOME/.zsh/completions"
@@ -41,75 +100,37 @@ else
   warn_log "just not on PATH - skipping its zsh completion"
 fi
 
-# ---- Claude Code user config ----
-# Mirror the ENTIRE dotfiles .claude/ tree into ~/.claude so new files are picked up
-# automatically without editing this script -- e.g. CLAUDE.md, workflow-reference.md (the
-# deep background trimmed out of CLAUDE.md so it does NOT load into model context every
-# turn), a future agents/ dir, output styles, etc.
+# ---- Git aliases ------------------------------------------------------------
+# Nothing to wire.  devcontainer/.config/git/config lands at ~/.config/git/config, which
+# git reads as a global config file in its own right -- `git help config`: "$XDG_CONFIG_HOME/
+# git/config, ~/.gitconfig ... If both files exist, both files are read".  So the aliases
+# work purely by having been mirrored: no `git config --global --add include.path`, and
+# nothing mutated outside the symlinks above.
 #
-# settings.json here is personal *preferences* only (status line, effortLevel,
-# skillOverrides, ...).  Sandbox *policy* (bypassPermissions, the rtk hook, connectors
-# disabled) is machine-scoped and baked into the image at
-# /etc/claude-code/managed-settings.json -- do NOT duplicate policy in dotfiles.  Claude
-# Code deep-merges the managed (machine) and user scopes.
-info_log "Installing Claude Code user config"
+# Two env vars would silently stop git reading it, so check rather than assume.
+info_log "Verifying git aliases are readable"
 
-CLAUDE_SRC_DIR="$DOTFILES_DIR/.claude"
-CLAUDE_DIR="$HOME/.claude"
-mkdir -p "$CLAUDE_DIR"
-
-if [[ -d "$CLAUDE_SRC_DIR" ]]; then
-  # Trailing "/." copies the directory's *contents* (recursively, via -a) into ~/.claude,
-  # overwriting only the files present in dotfiles -- runtime state (.credentials.json,
-  # history, memory, settings.local.json) is left untouched because it isn't in the source.
-  cp -a "$CLAUDE_SRC_DIR/." "$CLAUDE_DIR/"
-  debug_log "Copied $CLAUDE_SRC_DIR/ -> $CLAUDE_DIR/"
-  if [ "${DEBUG:-false}" = "true" ]; then
-    find "$CLAUDE_SRC_DIR" -type f -printf '%P\n' | while read -r rel; do
-      debug_log "  .claude/$rel -> $CLAUDE_DIR/$rel"
-    done
-  fi
+if git config --get alias.bdone >/dev/null 2>&1; then
+  debug_log "git reads $HOME/.config/git/config (alias.bdone resolves)"
 else
-  warn_log "Source dir not found: $CLAUDE_SRC_DIR"
+  warn_log "git is NOT reading ~/.config/git/config - aliases (bdone, fp, re, ri, ...) are unavailable."
+  warn_log "  GIT_CONFIG_GLOBAL=${GIT_CONFIG_GLOBAL:-<unset>} - if set, it REPLACES the global config files"
+  warn_log "  XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-<unset>} - if set and not ~/.config, git looks there instead"
+  warn_log "  Fix: unset those, or point XDG_CONFIG_HOME at ~/.config."
 fi
 
-# ---- Git aliases ----
-info_log "Configuring git aliases via include.path"
-
-ALIAS_PATH="$DOTFILES_DIR/gitconfig.aliases"
-# Log existing include.path entries for debugging
-debug_log "Existing include.path entries:"
-git config --global --get-all include.path 2>/dev/null | while read -r p; do debug_log "  $p"; done || debug_log "  (none)"
-# Add our aliases path if not already included (--add avoids overwriting existing entries)
-if ! git config --global --get-all include.path 2>/dev/null | grep -qxF "$ALIAS_PATH"; then
-  git config --global --add include.path "$ALIAS_PATH"
-  debug_log "Added git include.path = $ALIAS_PATH"
-else
-  debug_log "git include.path already contains $ALIAS_PATH, skipping"
-fi
-
-# ---- Summary ----
+# ---- Summary ----------------------------------------------------------------
 info_log "Dotfiles installed successfully"
 
 if [ "${DEBUG:-false}" = "true" ]; then
-  debug_log "--- Installed config files ---"
-  for f in ~/.zshrc ~/.p10k.zsh ~/.ohmyzsh.config ~/.zshrc.local; do
-    if [[ -f "$f" ]]; then
-      debug_log "  $f ($(wc -c < "$f") bytes)"
+  debug_log "--- Installed files (${#LINKED[@]}) ---"
+  for f in "${LINKED[@]}"; do
+    if [[ -e "$f" ]]; then
+      debug_log "  $f -> $(readlink "$f" 2>/dev/null || echo '(not a link)') ($(wc -c < "$f" | tr -d ' ') bytes)"
     else
-      debug_log "  $f MISSING"
+      debug_log "  $f MISSING (dangling link?)"
     fi
   done
-  if [[ -d "$CLAUDE_SRC_DIR" ]]; then
-    find "$CLAUDE_SRC_DIR" -type f -printf '%P\n' | while read -r rel; do
-      f="$CLAUDE_DIR/$rel"
-      if [[ -f "$f" ]]; then
-        debug_log "  $f ($(wc -c < "$f") bytes)"
-      else
-        debug_log "  $f MISSING"
-      fi
-    done
-  fi
-  debug_log "git include.path = $(git config --global --get include.path 2>/dev/null || echo 'NOT SET')"
+  debug_log "git alias source: $(git config --show-origin --get alias.bdone 2>/dev/null | cut -f1 || echo 'NOT READ')"
   debug_log "DOTZSH will resolve to: ${DOTZSH:-$HOME/dotfiles}"
 fi

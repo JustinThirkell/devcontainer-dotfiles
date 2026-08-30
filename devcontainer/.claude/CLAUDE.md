@@ -1,6 +1,6 @@
 # Personal workflow (Justin)
 
-Shell workflow commands provided by the devcontainer (zsh functions from the Carepatron-App repo at `.devcontainer/tooling/lib/` and `.devcontainer/tooling/clickup/`).  Full background/rationale for anything terse below lives in `~/dotfiles/.claude/workflow-reference.md` - read it on demand, it is deliberately NOT loaded every turn.
+Shell workflow commands provided by the devcontainer (zsh functions from the Carepatron-App repo at `.devcontainer/tooling/lib/` and `.devcontainer/tooling/clickup/`).  Full background/rationale for anything terse below lives in `~/.claude/workflow-reference.md` - read it on demand, it is deliberately NOT loaded every turn.
 
 ## Environment
 
@@ -10,7 +10,7 @@ Shell workflow commands provided by the devcontainer (zsh functions from the Car
 
 ## Tool use (token efficiency)
 
-- Prefer the native `Grep` / `Glob` / `Read` tools for searching and reading files.  Use `Bash` only for commands with no native equivalent (git, gh, aws, dotnet, tests, docker).  Native search/read is more token-efficient and bypasses the rtk output-rewrite hook, which otherwise truncates or mangles `grep` / `find` / diff output.
+- Prefer the native `Grep` / `Glob` / `Read` tools for searching and reading files.  Use `Bash` only for commands with no native equivalent (git, gh, aws, dotnet, tests, docker).  Native search/read is more token-efficient and bypasses the container's Bash output-rewrite hook, which otherwise truncates or mangles `grep` / `find` / diff output.
 - **The short aliases (`new`, `start`, `pr`, `cleanup`) do not exist for you.**  Agent tool calls run `bash -c`, which reads no shell rc file, so the interactive aliases are never defined.  Invoke the full name instead - `cp_new_task`, `cp_start_task`, `cp_pr_task`, `cp_cleanup_branches`, `clickup` - each is on `PATH` as an executable in `.devcontainer/tooling/bin/`.
 - Operate inside a worktree using **absolute paths**; do not rely on `cd` persistence - the Bash tool resets cwd to the project dir every call, so `cd $WT` churn is wasted and error-prone.
 
