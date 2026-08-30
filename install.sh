@@ -101,22 +101,47 @@ else
 fi
 
 # ---- Git aliases ------------------------------------------------------------
-# Nothing to wire.  devcontainer/.config/git/config lands at ~/.config/git/config, which
-# git reads as a global config file in its own right -- `git help config`: "$XDG_CONFIG_HOME/
-# git/config, ~/.gitconfig ... If both files exist, both files are read".  So the aliases
-# work purely by having been mirrored: no `git config --global --add include.path`, and
-# nothing mutated outside the symlinks above.
+# The alias file lands at ~/.config/git/aliases via the mirror above, and is pulled in with
+# include.path.  It is deliberately NOT ~/.config/git/config: devcontainer.json points
+# GIT_CONFIG_GLOBAL at that exact path, making it the container's OWN global config -- the
+# file configure-git-user.sh (user.name/email), configure-git-signing.sh (SSH signing key,
+# gpg.format, commit.gpgsign) and sandbox-host-bridges.sh (insteadOf, credential helper)
+# write into.  This script runs last in post-create, so shadowing that path with a symlink
+# would wipe all of it, and because those writes are re-applied on every attach their later
+# `git config --global` calls would follow the link into this repo.
 #
-# Two env vars would silently stop git reading it, so check rather than assume.
-info_log "Verifying git aliases are readable"
+# And because GIT_CONFIG_GLOBAL is set, git does NOT additionally auto-read
+# ~/.config/git/config as its XDG global, so include.path is required, not optional.
+info_log "Configuring git aliases via include.path"
 
-if git config --get alias.bdone >/dev/null 2>&1; then
-  debug_log "git reads $HOME/.config/git/config (alias.bdone resolves)"
+# Tilde form, not an absolute path into the clone: git expands it, so the global config
+# carries no dependency on where this repo happens to live.
+ALIAS_PATH='~/.config/git/aliases'
+
+# `|| true` because --get-all exits non-zero when the key is unset, and this script runs
+# under `set -e`.
+existing_includes="$(git config --global --get-all include.path 2>/dev/null || true)"
+if [[ -n "$existing_includes" ]]; then
+  debug_log "Existing include.path entries:"
+  while IFS= read -r p; do debug_log "  $p"; done <<< "$existing_includes"
 else
-  warn_log "git is NOT reading ~/.config/git/config - aliases (bdone, fp, re, ri, ...) are unavailable."
-  warn_log "  GIT_CONFIG_GLOBAL=${GIT_CONFIG_GLOBAL:-<unset>} - if set, it REPLACES the global config files"
-  warn_log "  XDG_CONFIG_HOME=${XDG_CONFIG_HOME:-<unset>} - if set and not ~/.config, git looks there instead"
-  warn_log "  Fix: unset those, or point XDG_CONFIG_HOME at ~/.config."
+  debug_log "Existing include.path entries: (none)"
+fi
+
+if ! grep -qxF "$ALIAS_PATH" <<< "$existing_includes"; then
+  git config --global --add include.path "$ALIAS_PATH"
+  debug_log "Added git include.path = $ALIAS_PATH"
+else
+  debug_log "git include.path already contains $ALIAS_PATH, skipping"
+fi
+
+# Assert it actually took, rather than assuming: a wrong GIT_CONFIG_GLOBAL or an unreadable
+# alias file both fail silently otherwise.
+if git config --get alias.bdone >/dev/null 2>&1; then
+  debug_log "git alias.bdone resolves"
+else
+  warn_log "git is not reading ~/.config/git/aliases - aliases (bdone, fp, re, ri, ...) unavailable."
+  warn_log "  GIT_CONFIG_GLOBAL=${GIT_CONFIG_GLOBAL:-<unset>} (include.path was written to this file)"
 fi
 
 # ---- Summary ----------------------------------------------------------------
@@ -132,5 +157,6 @@ if [ "${DEBUG:-false}" = "true" ]; then
     fi
   done
   debug_log "git alias source: $(git config --show-origin --get alias.bdone 2>/dev/null | cut -f1 || echo 'NOT READ')"
+  debug_log "git include.path = $(git config --global --get-all include.path 2>/dev/null | tr '\n' ' ' || echo 'NOT SET')"
   debug_log "DOTZSH will resolve to: ${DOTZSH:-$HOME/dotfiles}"
 fi

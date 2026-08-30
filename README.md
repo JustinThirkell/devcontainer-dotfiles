@@ -24,7 +24,7 @@ path under the container's `$HOME`. Nothing else in the repo is installed anywhe
 devcontainer/.zshrc                  ->  ~/.zshrc
 devcontainer/.claude/CLAUDE.md       ->  ~/.claude/CLAUDE.md
 devcontainer/.zsh/config.zsh         ->  ~/.zsh/config.zsh
-devcontainer/.config/git/config      ->  ~/.config/git/config
+devcontainer/.config/git/aliases     ->  ~/.config/git/aliases
 devcontainer/foo/bar/baz.conf        ->  ~/foo/bar/baz.conf
 ```
 
@@ -43,7 +43,7 @@ devcontainer-dotfiles/
 │   ├── .p10k.zsh            #   Powerlevel10k prompt configuration
 │   ├── .ohmyzsh.config      #   Oh My Zsh settings -- read *before* oh-my-zsh.sh loads
 │   ├── .tmux.conf           #   tmux: mouse mode, C-a prefix
-│   ├── .config/git/config   #   Git aliases (bclean, bdone, fp, re, ri, ...)
+│   ├── .config/git/aliases  #   Git aliases (bclean, bdone, fp, re, ri, ...)
 │   ├── .zsh/                #   Shell topic files, sourced by .zshrc after Oh My Zsh
 │   │   ├── aliases.zsh      #     j=just, gs=git status
 │   │   ├── config.zsh       #     Shell options, history, keybindings
@@ -124,7 +124,7 @@ that are much more efficient to install during docker build than at runtime:
 | just                     | Optional -- `install.sh` generates its zsh completion if present |
 
 `install.sh` itself needs nothing beyond bash and git -- it creates symlinks, generates one
-completion file, and changes no global state. The workflow tooling's own prerequisites (Node, `gh`, `jq`) are the
+completion file, and adds a single `include.path` to the global git config. The workflow tooling's own prerequisites (Node, `gh`, `jq`) are the
 Carepatron-App repo's concern now and are documented there.
 
 ## What happens at runtime
@@ -135,7 +135,7 @@ Container starts
        └─> setup-dotfiles.sh clones/pulls this repo to ~/dotfiles, runs install.sh
             ├─ Symlinks every file under devcontainer/ to the same path under $HOME
             ├─ Generates ~/.zsh/completions/_just (if just is on PATH)
-            └─ Verifies git actually reads ~/.config/git/config
+            └─ Adds git include.path -> ~/.config/git/aliases, and checks it took
 
 First terminal opened (zsh starts)
   └─> ~/.zshrc runs
@@ -191,14 +191,19 @@ file.
 **`EDITOR` needs `--wait`.** Without it `code` returns immediately and git aborts any
 commit or rebase that opens an editor.
 
-**Git aliases work by being mirrored, not by being wired.** `~/.config/git/config` is a
-global config file in git's own right -- `git help config`: "`$XDG_CONFIG_HOME/git/config`,
-`~/.gitconfig` ... If both files exist, both files are read". So there is no
-`include.path` to set, and `~/.gitconfig` still applies on top. Two env vars would
-silently stop git reading it, and `install.sh` warns if either has: `GIT_CONFIG_GLOBAL`
-(replaces both global config files) and `XDG_CONFIG_HOME` (moves the directory git looks
-in). If you can't unset them, fall back to `~/.config/git/aliases` plus an explicit
-`include.path`.
+**Never install anything to `~/.config/git/config`.** `devcontainer.json` points
+`GIT_CONFIG_GLOBAL` at that exact path, which makes it the container's *own* global git
+config -- the file `configure-git-user.sh` (name, email), `configure-git-signing.sh` (SSH
+signing key, `gpg.format`, `commit.gpgsign`) and `sandbox-host-bridges.sh` (`insteadOf`,
+credential helper) write into. `setup-dotfiles.sh` runs **last** in `post-create`, so a
+symlink there would wipe all of it -- and since those writes are re-applied on every
+attach, their later `git config --global` calls would follow the link into this repo.
+
+That is why the aliases live in a sibling file, `~/.config/git/aliases`, pulled in with
+`include.path`. It also means there is no zero-wiring option here: because
+`GIT_CONFIG_GLOBAL` is set, git does *not* additionally auto-read `~/.config/git/config`
+as its XDG global, so `include.path` is required rather than optional. `install.sh`
+asserts the alias actually resolves afterwards instead of assuming.
 
 **`skillOverrides` takes exact names only.** Wildcards are rejected outright
 (`wildcard-suffix names are not allowed; list each skill by its exact name`), and there is
@@ -209,8 +214,16 @@ no allow-list form in settings -- so the list has to name every skill you want o
 ### Enable verbose logging
 
 Set `DEVCONTAINER_DEBUG=true` to get detailed output from `install.sh`, including every
-symlink it creates and where it points. Set it in the devcontainer's `config.local`, or in
-`containerEnv` in `devcontainer.json`:
+symlink it creates and where it points. It is an ordinary environment variable, read at
+runtime, so the quickest route needs no rebuild:
+
+```bash
+DEVCONTAINER_DEBUG=true ~/dotfiles/install.sh
+```
+
+`DEVCONTAINER_DEBUG` is the devcontainer's own convention -- its scripts read the same
+name, and `devcontainer.json` already declares it in `containerEnv`. To change the default
+for every process, edit it there and rebuild:
 
 ```json
 {
@@ -219,6 +232,13 @@ symlink it creates and where it points. Set it in the devcontainer's `config.loc
   }
 }
 ```
+
+> [!NOTE]
+> `config.local` will **not** work for this. It is not an env file: nothing sources or
+> exports it. The devcontainer's `scripts/common.sh` reads it key-by-key through explicit
+> getters, and only five keys exist -- `DOTFILES_REPOSITORY`, `DOTFILES_TARGET_PATH`,
+> `DOTFILES_INSTALL_COMMAND`, `GIT_USER_NAME`, `GIT_USER_EMAIL`. Any other key you add
+> there is silently ignored.
 
 ### Common issues
 
