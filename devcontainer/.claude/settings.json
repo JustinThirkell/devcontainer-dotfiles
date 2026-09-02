@@ -4,6 +4,10 @@
     "type": "command",
     "command": "$HOME/.claude/ccusage-statusline.sh"
   },
+  "attribution": {
+    "commit": "Co-Authored-By: Claude",
+    "pr": "Co-Authored-By: Claude"
+  },
   "effortLevel": "xhigh",
   "showTurnDuration": true,
   "skillOverrides": {
