@@ -82,7 +82,7 @@ Never pass `--ai-review` (or `-ar` / `--greptile`) unless the operator's current
 
 - **Always signed.**  Never `--no-gpg-sign` / `-c commit.gpgsign=false` / alter signing, even defensively.  Signing is pre-configured and the container proves a real signature before it finishes starting - trust it, don't probe it.  If a commit fails *because of* signing, surface the error and stop; don't retry with signing off.
 - **Always run pre-commit hooks (lefthook).**  Never `--no-verify` / `-n` on commit/merge/rebase/cherry-pick/revert; never set `LEFTHOOK*` skip envs or lefthook skip flags.  If a hook fails, surface the full output and stop - fix the cause and re-commit.  If it fails for an unrelated reason (broken codegen, esbuild mismatch), stop and tell the operator.
-- **Commit subjects: no `[CU-...]` prefix.**  Write a plain conventional subject (e.g. `HostEnvironment: introduce Backend`).  The `[CU-{taskid}]` prefix belongs only to PR titles and branch names, both auto-generated; it appears in `git log` only because squash-merges inherit the PR title.
+- **Commit subjects: no `[CU-...]` prefix.**  Write a plain subject (e.g. `HostEnvironment: introduce Backend`).  The `[CU-{taskid}]` prefix belongs only to PR titles and branch names, both auto-generated; it appears in `git log` only because squash-merges inherit the PR title.
 
 All commit rules apply to every commit - feature, fixup, amend, rebase, cherry-pick - even on private branches, throwaway worktrees, or pre-squash.  (Full rationale for each in workflow-reference.md.)
 
