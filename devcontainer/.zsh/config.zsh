@@ -6,11 +6,23 @@ export CLICOLOR=true
 # HISTSIZE to a floor of 50000 and SAVEHIST to 10000; these lines are sourced after it
 # and win.  Keep SAVEHIST == HISTSIZE, or the file silently retains less than the shell
 # holds in memory.  Do not re-add HISTFILESIZE/HISTCONTROL -- those are bash, inert here.
-HISTFILE=~/.zsh_history
+#
+# HISTFILE belongs on the /commandhistory volume rather than under $HOME: $HOME is the
+# container's overlay layer, so rebuilding the image discards anything kept there.  The
+# copy is a one-time seed for a container whose history predates this, and no-ops after.
+if [[ -d /commandhistory ]]; then
+  HISTFILE=/commandhistory/.zsh_history
+  if [[ ! -f $HISTFILE && -f ~/.zsh_history ]]; then
+    cp ~/.zsh_history $HISTFILE
+  fi
+else
+  HISTFILE=~/.zsh_history
+fi
 HISTSIZE=50000
 SAVEHIST=50000
 
 setopt SHARE_HISTORY        # share history between concurrent sessions (implies INC_APPEND_HISTORY)
+setopt HIST_FCNTL_LOCK      # lock via fcntl() rather than an ad-hoc .LOCK sibling file
 setopt EXTENDED_HISTORY     # timestamp each entry
 setopt HIST_IGNORE_ALL_DUPS # stronger than omz's HIST_IGNORE_DUPS: drop older dupes anywhere
 setopt HIST_REDUCE_BLANKS
