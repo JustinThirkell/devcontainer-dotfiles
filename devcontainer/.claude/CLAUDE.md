@@ -5,7 +5,7 @@ The workflow commands (`cp_*`, `clickup`, `git_*`, `slack_*`) live in the Carepa
 ## Tool use
 
 - **Use the search tools the session actually has.**  `Grep` and `Glob` are not present in every session - check the tool list before reaching for them, and fall back to `Bash` when they are absent.  There is no `rg` binary on `PATH` (it resolves to a shell function from Claude Code's own shell snapshot), so `grep -rn` is the dependable form.  `Read` is native and always present; prefer it over `cat`.
-- **The short aliases (`new`, `start`, `pr`, `cleanup`) do not exist for you.**  Agent tool calls run `bash -c`, which reads no shell rc file.  Use the full name - `cp_new_task`, `cp_start_task`, `cp_pr_task`, `cp_cleanup_branches`, `clickup` - each is on `PATH` as an executable in `.devcontainer/tooling/bin/`.
+- **The short aliases (`new`, `start`, `pr`, `cleanup`) do not exist for you.**  Your Bash tool runs zsh non-interactively over a snapshot of `~/.zshrc` alone, so nothing from `/etc/zsh/zshrc` - where `tooling/lib/load.zsh` loads them - reaches it.  Use the full name - `cp_new_task`, `cp_start_task`, `cp_pr_task`, `cp_cleanup_branches`, `clickup` - each is on `PATH` as an executable in `.devcontainer/tooling/bin/`.
 - Operate inside a worktree using **absolute paths**; do not rely on `cd` persistence - the Bash tool resets cwd to the project dir every call, so `cd $WT` churn is wasted and error-prone.
 
 ## Environment and credentials

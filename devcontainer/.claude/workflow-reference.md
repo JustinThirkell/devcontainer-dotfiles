@@ -55,6 +55,14 @@ Greptile only reviews PRs carrying the `greptile` label, and runs are expensive;
 
 **Pushing `.github/workflows/`.**  Plain `git push` handles it.  This used to be the one thing the container could not do - pushes went over SSH on a deploy key, and GitHub bars deploy keys from workflow files regardless of write access - and a `git_push_via_pat` / `gp-workflows` helper existed to route that one push over HTTPS.  That helper is **deleted**, and `verify-static.sh` asserts it stays deleted: it has nothing left to escape now that pushes travel over HTTPS with a proxy-attached PAT carrying `Workflows: write`, and it would actively break, because it supplied its own credential via `gh auth git-credential` - which in this container is the `GH_TOKEN` placeholder.  A rejection on a workflow push is that PAT's permission, not the transport.
 
+**Commit attribution.**  Devcontainer commits are authored `Claude (for Justin Thirkell) <justin+claude@carepatron.com>`, which GitHub resolves to Justin's account, so a second avatar comes only from a `Co-Authored-By` trailer.  The trailer is an instruction the agent follows, not something appended: `lefthook.yml` has no `commit-msg` stage, so a missing trailer is an omission.  The repository squashes with the PR title as subject and the branch's commit messages as body, so a trailer in the PR description never reaches master.
+
+**Scripting a diff.**  Pass `--no-ext-diff` to `git diff` and `git show`: a host `diff.external` setting turns unified output into side-by-side columns, and a `^[+-]` grep then reads as "no changes" rather than failing.
+
+**Hooks in a worktree.**  `lefthook run pre-commit --verbose | grep 'loading config'` shows which config a worktree loaded.  The shim exits 0 when it cannot find the lefthook binary, so check for that before trusting a hook-free commit.
+
+**Grepping the dotfiles.**  `~/.zsh/*.zsh` are symlinks into the dotfiles checkout, which `grep -r` does not follow; use `grep -R`.
+
 ## Workflow commands - the parts that surprise
 
 Flags and behaviour are in `.devcontainer/tooling/README.md` and behind `--help` on every command.  What follows is only what is easy to get wrong.
@@ -118,8 +126,18 @@ Scriptable path:
 
 1. `gh run list --branch "<branch>" --limit 10 --json databaseId,headSha,status,conclusion,workflowName` (filter `conclusion == "failure"`; for current HEAD only, also `headSha == $(git rev-parse HEAD)`).
 2. `gh api "repos/<owner>/<repo>/actions/runs/<run-id>/jobs" --jq '.jobs[] | {name, conclusion, html_url}'` (html_url ends with `/job/<job-id>`).
-3. `gh api "repos/<owner>/<repo>/actions/jobs/<job-id>/logs" 2>&1 | tail -80`.
+3. `gh api --allow-escape-sequences "repos/<owner>/<repo>/actions/jobs/<job-id>/logs" | sed -E 's/\x1b\[[0-9;]*[A-Za-z]//g' | tail -80`.  Without the flag a coloured log (Stryker, lefthook) prints only a refusal to stderr, which a `2>/dev/null` pipeline reads as an empty log.  `gh run download <run-id>` needs `-R <owner>/<repo>` outside a checkout.
 
 Get `<owner>/<repo>` via `gh repo view --json nameWithOwner -q .nameWithOwner`.
+
+When CI looks stuck, none of these is a pending state:
+
+- **A job stays `in_progress` after its run completed.**  Trust the log tail (`Post job cleanup`, `Complete job`), and clear it with `gh run rerun <run-id> --job <job-id>`, not an empty commit.
+- **Zero runs for a pushed sha.**  Check `mergeable` first (a `CONFLICTING` PR creates no checks), then `gh api "repos/<owner>/<repo>/actions/runs?head_sha=<sha>" --jq .total_count`: `0` means never dispatched.  `gh workflow run <file> --ref <branch>` gives a real result for a workflow declaring `workflow_dispatch`, but it does not attach to the PR as a check.
+- **A job cancelled at about 15 minutes with an empty `runner_name`** was evicted from the hosted-runner queue and never ran.  Re-run it.
+
+To iterate on one slow workflow without re-running the PR's whole suite, push experiment commits to a branch with no PR and dispatch just that workflow with `gh workflow run <file> --ref <branch>`.  It works for a workflow file that exists only on that branch once it has run there.
+
+A private repository's Actions `badge.svg` 404s outside a signed-in browser session, even with a token.  For a status view, poll `/repos/<owner>/<repo>/actions/workflows/<file>/runs?per_page=1` with its ETag; a 304 costs no rate limit.
 
 The PAT is not in the container - the proxy holds it and attaches it, sourced from 1Password on the host.  So widening its permissions is a host-side change plus an org-owner approval at `https://github.com/organizations/Carepatron/settings/personal-access-token-requests`, and is not something an agent can act on locally.
