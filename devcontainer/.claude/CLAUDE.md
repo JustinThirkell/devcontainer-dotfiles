@@ -4,9 +4,11 @@ The workflow commands (`cp_*`, `clickup`, `git_*`, `slack_*`) live in the Carepa
 
 ## Tool use
 
-- **Use the search tools the session actually has.**  `Grep` and `Glob` are not present in every session - check the tool list before reaching for them, and fall back to `Bash` when they are absent.  There is no `rg` binary on `PATH` (it resolves to a shell function from Claude Code's own shell snapshot), so `grep -rn` is the dependable form.  `Read` is native and always present; prefer it over `cat`.
+- **Use the search tools the session actually has.**  `Grep` and `Glob` are not present in every session - check the tool list before reaching for them, and fall back to `Bash` when they are absent.  There is no `rg` binary on `PATH`, and both `rg` and `grep` resolve to shell functions from Claude Code's own shell snapshot, which can return a false empty on a file just written; `command grep -rn` reaches `/usr/bin/grep` and is the dependable form.  `Read` is native and always present; prefer it over `cat`.
 - **The short aliases (`new`, `start`, `pr`, `cleanup`) do not exist for you.**  Your Bash tool runs zsh non-interactively over a snapshot of `~/.zshrc` alone, so nothing from `/etc/zsh/zshrc` - where `tooling/lib/load.zsh` loads them - reaches it.  Use the full name - `cp_new_task`, `cp_start_task`, `cp_pr_task`, `cp_cleanup_branches`, `clickup` - each is on `PATH` as an executable in `.devcontainer/tooling/bin/`.
 - Operate inside a worktree using **absolute paths**; do not rely on `cd` persistence - the Bash tool resets cwd to the project dir every call, so `cd $WT` churn is wasted and error-prone.
+- **Edit a file already read this session with the Edit tool**, not a Bash rewrite (`sed -i`, a script): after a Bash rewrite the harness sends the whole file back as a changed-on-disk notice, several thousand tokens a file.
+- **Detach long background work** with `setsid nohup bash -c '<cmd> > out 2>&1; echo "exit=$?" > out.done' > /dev/null 2>&1 &` and wait on the sentinel.  A tracked `run_in_background` task can be killed mid-flight whatever its `timeout`, and a killed `claude -p` leaves a 0-byte output that reads like an auth failure.
 
 ## Environment and credentials
 
@@ -31,6 +33,13 @@ Every "does X actually do Y?" has an authoritative source - the dependency's own
 Escalate only what I alone can settle: a deployed-environment check, or a judgement that is mine (product behaviour, risk appetite, naming).  Raise it while we are still talking; it is not review input.
 If resolving something overturns what you already wrote - comments, commit message, PR body - correct it in the same pass.  A right answer beside stale prose is still a wrong PR.
 
+## Communication
+
+- When a design has genuine optionality, put the options to me, recommendation first (`AskUserQuestion`), before authoring the contract, ADR or plan entry that embodies one of them.  Drafting to sharpen the options is fine; presenting a chosen shape as decided is not.
+- When announcing a design choice mid-task, state the mechanism: what is split or moved, what runs in parallel or in sequence, and the number that makes it pay.
+- Round durations in chat to whole minutes ("~10 min"); precise figures belong only in artefacts that exist to record a measurement.
+- Production data checks go in one `.sql` file of separate SELECTs, each with a literal label as its first column, which I run in TablePlus against the production read replica.  Profile each on production-shaped data first, and return no customer values.
+
 ## Devcontainer worktree workflow
 
 Trigger: "use devcontainer worktree workflow" / "worktree this" / "use devcontainer workflow" / any close variant.  Each task gets its own worktree under `~/worktrees/` so parallel Claude sessions don't collide on `/workspace`.
@@ -51,6 +60,8 @@ After the worktree exists:
 3. Open the PR: for public-api work use `/public-api-pr` (see PR creation).  **Pre-authorized - do this without asking.**
 4. Update the ExecPlan if one applies (tick checkboxes, add Surprises/Decisions).
 5. Leave the worktree until the PR merges; post-merge run `cleanup`.  A PR *closed without merging* is `cp_cleanup_aborted_prs` instead - `cleanup` covers neither side of that.  Don't manually `git worktree remove` / `branch -D` without approval.
+
+Exception to new-by-default: when the files to change exist only on an open, unmerged PR's branch, continue on that branch in a worktree attached to it (`git -C /workspace worktree add ~/worktrees/<slug> <branch>`, then copy the node_modules symlinks from another worktree) rather than starting a new task and merging that branch in.
 
 Constraints:
 
@@ -73,6 +84,12 @@ Constraints:
 Any "make a PR" request on public-api work goes through `/public-api-pr`.  It wraps `cp_pr_task` (ClickUp IN REVIEW, title/body, reviewer, browser-open), adds the fresh no-context `/public-api-code-review` + CI loop, and ends with `cp_pr_mark_ready_for_review` to un-draft and ping.  Quick PR with no self-review: `/public-api-pr` with skip intent.  Outside public-api (e.g. ui/): `cp_pr_task`.  `/pr-create` and `/pr-review` are `"off"` in my `skillOverrides` and are never the route.
 
 **Do not ask permission to run it.**  Completing the work is the trigger.  `/public-api-pr` opens a *draft* PR and pings nobody until its review loop converges, so there is no outward-facing action to gate on - and the skill's own two-session split (Session A stops after writing the handoff; the operator launches Session B) is unconditional and likewise never posed as a question.
+
+Shaping the work into PRs:
+
+- A multi-milestone plan ships as **one PR**, one commit per milestone, unless something concrete blocks it: an interim commit cannot compile, I have to act between phases, or a phase is speculative.  `development.md`'s "small sequential deployments" is about deploys, not PRs.
+- Never create a ClickUp task for a deferred follow-up; it goes in the plan doc.
+- When unblocking a conflicted PR, resolve only the file(s) in conflict and report anything else the merge surfaces.
 
 ### `--ai-review` / `-ar` / `--greptile` - explicit opt-in only
 
