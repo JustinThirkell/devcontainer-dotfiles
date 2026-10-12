@@ -9,6 +9,7 @@ The workflow commands (`cp_*`, `clickup`, `git_*`, `slack_*`) live in the Carepa
 - Operate inside a worktree using **absolute paths**; do not rely on `cd` persistence - the Bash tool resets cwd to the project dir every call, so `cd $WT` churn is wasted and error-prone.
 - **Edit a file already read this session with the Edit tool**, not a Bash rewrite (`sed -i`, a script): after a Bash rewrite the harness sends the whole file back as a changed-on-disk notice, several thousand tokens a file.
 - **Detach long background work** with `setsid nohup bash -c '<cmd> > out 2>&1; echo "exit=$?" > out.done' > /dev/null 2>&1 &` and wait on the sentinel.  A tracked `run_in_background` task can be killed mid-flight whatever its `timeout`, and a killed `claude -p` leaves a 0-byte output that reads like an auth failure.
+- **Guard every `rm` target that starts with a variable: `rm -f "${F:?}/x.json"`, never `rm -f "$F/x.json"`.**  An unguarded variable-led `rm`/`rmdir` target trips Claude Code's built-in dangerous-removal check, which bypass mode, `permissions.allow` and `PreToolUse` hooks cannot override, so the session stalls on a prompt and is auto-denied after 2 min.  The guard passes inside a `bash -c '...'` string too.  Copying the path into a variable first (`out="$F/x"; rm "${out:?}"`) still trips the check.  A literal path or `find <dir> ... -delete` also passes.
 
 ## Environment and credentials
 
