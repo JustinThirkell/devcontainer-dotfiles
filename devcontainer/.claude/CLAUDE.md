@@ -25,7 +25,7 @@ These are pre-decided.  Treat each as durable authorization and act without paus
 - **Open the PR** via `/public-api-pr` when implementation is complete.  Never ask "shall I open the PR?" / "say the word".
 - **Ship a converged, CI-green PR** - `/public-api-pr` auto-ships; never add a "proceed?" gate in front of it.
 
-The genuine human gates are narrow and named: the mid-loop fix-choice and rule-candidate gates inside `/public-api-pr`, its non-converged pause, and anything this file explicitly marks opt-in (`--ai-review`, `--no-slack`, the skip route).  If it is not on that list, proceed.
+The genuine human gates are narrow and named: `/public-api-pr`'s one end-of-loop batch of the fix choices and rule candidates it settled provisionally (each fix choice is announced as it is made, and an override never makes the loop wait), its non-converged pause, and anything this file explicitly marks opt-in (`--ai-review`, `--no-slack`, the skip route).  If it is not on that list, proceed.
 
 ## Complete the work before the handoff
 
