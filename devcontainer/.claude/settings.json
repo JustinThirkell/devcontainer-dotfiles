@@ -10,6 +10,7 @@
   },
   "effortLevel": "xhigh",
   "showTurnDuration": true,
+  "tui": "fullscreen",
   "skillOverrides": {
     "cloudwatch": "off",
     "component-audit": "off",
