@@ -144,6 +144,27 @@ else
   warn_log "  GIT_CONFIG_GLOBAL=${GIT_CONFIG_GLOBAL:-<unset>} (include.path was written to this file)"
 fi
 
+# ---- Claude Code MCP servers -----------------------------------------------
+# The AWS Documentation MCP server, at user scope so it reaches every session - /workspace and
+# each ~/worktrees/ checkout alike, where local scope is keyed to one project path.  User scope
+# writes $CLAUDE_CONFIG_DIR/.claude.json, Claude Code's own state, so it is added rather than
+# linked; on an existing ~/.claude volume this finds it already there.  `claude mcp get` exits
+# non-zero only when the server is not configured at all, whatever its health.  A failure warns
+# and the install carries on: nothing else here depends on the server.
+info_log "Configuring Claude Code MCP servers"
+
+if ! command -v claude >/dev/null 2>&1; then
+  debug_log "claude not on PATH - skipping the aws-docs MCP server"
+elif claude mcp get aws-docs >/dev/null 2>&1; then
+  debug_log "MCP server aws-docs already configured"
+elif mcp_out="$(claude mcp add --scope user aws-docs \
+  -e FASTMCP_LOG_LEVEL=ERROR -e AWS_DOCUMENTATION_PARTITION=aws \
+  -- uvx awslabs.aws-documentation-mcp-server@1.2.3 2>&1)"; then
+  info_log "Added MCP server aws-docs at user scope"
+else
+  warn_log "Could not add the aws-docs MCP server: $mcp_out"
+fi
+
 # ---- Summary ----------------------------------------------------------------
 info_log "Dotfiles installed successfully"
 
