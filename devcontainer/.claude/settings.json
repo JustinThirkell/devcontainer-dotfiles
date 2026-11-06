@@ -1,16 +1,9 @@
 {
   "cleanupPeriodDays": 36500,
-  "statusLine": {
-    "type": "command",
-    "command": "$HOME/.claude/ccusage-statusline.sh"
-  },
   "attribution": {
-    "commit": "Co-Authored-By: Claude",
-    "pr": "Co-Authored-By: Claude"
+    "commit": "Co-Authored-By: Claude <noreply@anthropic.com>",
+    "pr": "Co-Authored-By: Claude <noreply@anthropic.com>"
   },
-  "effortLevel": "xhigh",
-  "showTurnDuration": true,
-  "tui": "fullscreen",
   "skillOverrides": {
     "cloudwatch": "off",
     "component-audit": "off",
@@ -72,5 +65,20 @@
     "tech-lead": "off",
     "townhall-report": "off",
     "transcription-sweeper-report": "off"
+  },
+  "statusLine": {
+    "type": "command",
+    "command": "$HOME/.claude/ccusage-statusline.sh"
+  },
+  "effortLevel": "xhigh",
+  "modelSettings": {
+    "claude-opus-5-5": {
+      "effortLevel": "xhigh"
+    }
+  },
+  "tui": "fullscreen",
+  "showTurnDuration": true,
+  "enabledPlugins": {
+    "mattpocock-skills@claude-plugins-official": true
   }
 }
